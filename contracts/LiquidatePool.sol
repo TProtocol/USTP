@@ -16,8 +16,8 @@ contract LiquidatePool {
 	address public mxpRedeemPool;
 
 	address public admin;
-	// usdpool
-	address public usdpool;
+	// ustpool
+	address public ustpool;
 	// stbt address
 	IERC20 public stbt;
 	// usdc address
@@ -91,7 +91,7 @@ contract LiquidatePool {
 
 	constructor(
 		address _admin,
-		address _usdpool,
+		address _ustpool,
 		address _mxpRedeemPool,
 		address _stbt,
 		address _usdc,
@@ -99,14 +99,14 @@ contract LiquidatePool {
 		address[3] memory _coins
 	) {
 		require(_admin != address(0), "!_admin");
-		require(_usdpool != address(0), "!_usdpool");
+		require(_ustpool != address(0), "!_ustpool");
 		require(_mxpRedeemPool != address(0), "!_mxpRedeemPool");
 		require(_stbt != address(0), "!_stbt");
 		require(_usdc != address(0), "!_usdc");
 		require(_priceFeed != address(0), "!_priceFeed");
 
 		admin = _admin;
-		usdpool = _usdpool;
+		ustpool = _ustpool;
 		mxpRedeemPool = _mxpRedeemPool;
 		stbt = IERC20(_stbt);
 		usdc = IERC20(_usdc);
@@ -219,7 +219,7 @@ contract LiquidatePool {
 	 * @param stbtAmount the amout of stbt
 	 */
 	function liquidateSTBT(address caller, uint256 stbtAmount) external {
-		require(msg.sender == usdpool, "unauthorized");
+		require(msg.sender == ustpool, "unauthorized");
 		require(priceFeed.latestAnswer() >= targetPrice, "depeg");
 		require(stbtAmount >= redeemThreshold, "less than redeemThreshold.");
 		stbt.safeTransfer(mxpRedeemPool, stbtAmount);
@@ -272,7 +272,7 @@ contract LiquidatePool {
 		uint256 minReturn,
 		address receiver
 	) external {
-		require(msg.sender == usdpool, "unauthorized");
+		require(msg.sender == ustpool, "unauthorized");
 		// From stbt to others
 		uint256 dy = curvePool.get_dy_underlying(0, j, stbtAmount);
 		require(dy >= minReturn, "!minReturn");

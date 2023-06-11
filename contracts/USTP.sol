@@ -8,45 +8,45 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
  * @title Interest-bearing ERC20-like token for TProtocol.
  *
  * This contract is abstract. To make the contract deployable override the
- * `_getTotalSupplyUSDP` function. `USDPool.sol` contract inherits USDP and defines
- * the `_getTotalSupplyUSDP` function.
+ * `_getTotalSupplyUSTP` function. `USTPool.sol` contract inherits USTP and defines
+ * the `_getTotalSupplyUSTP` function.
  *
- * USDP balances are dynamic and represent the holder's share in the total amount
+ * USTP balances are dynamic and represent the holder's share in the total amount
  * of Ether controlled by the protocol. Account shares aren't normalized, so the
  * contract also stores the sum of all shares to calculate each account's token balance
  * which equals to:
  *
- *   shares[account] * _getTotalSupplyUSDP() / _getTotalShares()
+ *   shares[account] * _getTotalSupplyUSTP() / _getTotalShares()
  *
  * For example, assume that we have:
  *
- *   _getTotalSupplyUSDP() -> 10 USDP
+ *   _getTotalSupplyUSTP() -> 10 USTP
  *   sharesOf(user1) -> 100
  *   sharesOf(user2) -> 400
  *
  * Therefore:
  *
- *   balanceOf(user1) -> 2 tokens which corresponds 2 USDP
- *   balanceOf(user2) -> 8 tokens which corresponds 8 USDP
+ *   balanceOf(user1) -> 2 tokens which corresponds 2 USTP
+ *   balanceOf(user2) -> 8 tokens which corresponds 8 USTP
  *
- * Since balances of all token holders change when the amount of total supplied USDP
+ * Since balances of all token holders change when the amount of total supplied USTP
  * changes, this token cannot fully implement ERC20 standard: it only emits `Transfer`
  * events upon explicit transfer between holders. In contrast, when total amount of
  * pooled Ether increases, no `Transfer` events are generated: doing so would require
  * emitting an event for each token holder and thus running an unbounded loop.
  */
 
-abstract contract USDP is ERC20 {
+abstract contract USTP is ERC20 {
 	using SafeMath for uint256;
 	uint256 private totalShares;
 
 	/**
-	 * @dev USDP balances are dynamic and are calculated based on the accounts' shares
+	 * @dev USTP balances are dynamic and are calculated based on the accounts' shares
 	 * and the total amount of Ether controlled by the protocol. Account shares aren't
 	 * normalized, so the contract also stores the sum of all shares to calculate
 	 * each account's token balance which equals to:
 	 *
-	 *   shares[account] * _getTotalSupplyUSDP() / _getTotalShares()
+	 *   shares[account] * _getTotalSupplyUSTP() / _getTotalShares()
 	 */
 	mapping(address => uint256) private shares;
 
@@ -66,12 +66,12 @@ abstract contract USDP is ERC20 {
 	 * @notice An executed `burnShares` request
 	 *
 	 * @dev Reports simultaneously burnt shares amount
-	 * and corresponding USDP amount.
-	 * The USDP amount is calculated twice: before and after the burning incurred rebase.
+	 * and corresponding USTP amount.
+	 * The USTP amount is calculated twice: before and after the burning incurred rebase.
 	 *
 	 * @param account holder of the burnt shares
-	 * @param preRebaseTokenAmount amount of USDP the burnt shares corresponded to before the burn
-	 * @param postRebaseTokenAmount amount of USDP the burnt shares corresponded to after the burn
+	 * @param preRebaseTokenAmount amount of USTP the burnt shares corresponded to before the burn
+	 * @param postRebaseTokenAmount amount of USTP the burnt shares corresponded to after the burn
 	 * @param sharesAmount amount of burnt shares
 	 */
 	event SharesBurnt(
@@ -91,21 +91,21 @@ abstract contract USDP is ERC20 {
 	/**
 	 * @return the amount of tokens in existence.
 	 *
-	 * @dev Always equals to `_getTotalSupplyUSDP()` since token amount
-	 * is pegged to the total amount of USDP controlled by the protocol.
+	 * @dev Always equals to `_getTotalSupplyUSTP()` since token amount
+	 * is pegged to the total amount of USTP controlled by the protocol.
 	 */
 	function totalSupply() public view override returns (uint256) {
-		return _getTotalSupplyUSDP();
+		return _getTotalSupplyUSTP();
 	}
 
 	/**
 	 * @return the amount of tokens owned by the `_account`.
 	 *
 	 * @dev Balances are dynamic and equal the `_account`'s share in the amount of the
-	 * total USDP controlled by the protocol. See `sharesOf`.
+	 * total USTP controlled by the protocol. See `sharesOf`.
 	 */
 	function balanceOf(address _account) public view override returns (uint256) {
-		return getUSDPAmountByShares(_sharesOf(_account));
+		return getUSTPAmountByShares(_sharesOf(_account));
 	}
 
 	/**
@@ -126,22 +126,22 @@ abstract contract USDP is ERC20 {
 	}
 
 	/**
-	 * @return the amount of shares that corresponds to `_USDPAmount` protocol-supplied USDP.
+	 * @return the amount of shares that corresponds to `_USTPAmount` protocol-supplied USTP.
 	 */
-	function getSharesByUSDPAmount(uint256 _USDPAmount) public view returns (uint256) {
-		uint256 totalSupplyUSDP = _getTotalSupplyUSDP();
-		return totalSupplyUSDP == 0 ? 0 : _USDPAmount.mul(_getTotalShares()).div(totalSupplyUSDP);
+	function getSharesByUSTPAmount(uint256 _USTPAmount) public view returns (uint256) {
+		uint256 totalSupplyUSTP = _getTotalSupplyUSTP();
+		return totalSupplyUSTP == 0 ? 0 : _USTPAmount.mul(_getTotalShares()).div(totalSupplyUSTP);
 	}
 
 	/**
-	 * @return the amount of USDP that corresponds to `_sharesAmount` token shares.
+	 * @return the amount of USTP that corresponds to `_sharesAmount` token shares.
 	 */
-	function getUSDPAmountByShares(uint256 _sharesAmount) public view returns (uint256) {
+	function getUSTPAmountByShares(uint256 _sharesAmount) public view returns (uint256) {
 		uint256 totalSharesAmount = _getTotalShares();
 		return
 			totalSharesAmount == 0
 				? 0
-				: _sharesAmount.mul(_getTotalSupplyUSDP()).div(totalSharesAmount);
+				: _sharesAmount.mul(_getTotalSupplyUSTP()).div(totalSharesAmount);
 	}
 
 	/**
@@ -161,17 +161,17 @@ abstract contract USDP is ERC20 {
 	 */
 	function transferShares(address _recipient, uint256 _sharesAmount) external returns (uint256) {
 		_transferShares(msg.sender, _recipient, _sharesAmount);
-		uint256 tokensAmount = getUSDPAmountByShares(_sharesAmount);
+		uint256 tokensAmount = getUSTPAmountByShares(_sharesAmount);
 		_emitTransferEvents(msg.sender, _recipient, tokensAmount, _sharesAmount);
 		return tokensAmount;
 	}
 
 	/**
-	 * @return the total amount of USDP.
+	 * @return the total amount of USTP.
 	 * @dev This is used for calculating tokens from shares and vice versa.
 	 * @dev This function is required to be implemented in a derived contract.
 	 */
-	function _getTotalSupplyUSDP() internal view virtual returns (uint256);
+	function _getTotalSupplyUSTP() internal view virtual returns (uint256);
 
 	/**
 	 * @notice Moves `_amount` tokens from `_sender` to `_recipient`.
@@ -179,7 +179,7 @@ abstract contract USDP is ERC20 {
 	 * Emits a `TransferShares` event.
 	 */
 	function _transfer(address _sender, address _recipient, uint256 _amount) internal override {
-		uint256 _sharesToTransfer = getSharesByUSDPAmount(_amount);
+		uint256 _sharesToTransfer = getSharesByUSTPAmount(_amount);
 		_transferShares(_sender, _recipient, _sharesToTransfer);
 		_emitTransferEvents(_sender, _recipient, _amount, _sharesToTransfer);
 	}
@@ -268,14 +268,14 @@ abstract contract USDP is ERC20 {
 		uint256 accountShares = shares[_account];
 		require(_sharesAmount <= accountShares, "BALANCE_EXCEEDED");
 
-		uint256 preRebaseTokenAmount = getSharesByUSDPAmount(_sharesAmount);
+		uint256 preRebaseTokenAmount = getSharesByUSTPAmount(_sharesAmount);
 
 		newTotalShares = _getTotalShares().sub(_sharesAmount);
 		totalShares = newTotalShares;
 
 		shares[_account] = accountShares.sub(_sharesAmount);
 
-		uint256 postRebaseTokenAmount = getSharesByUSDPAmount(_sharesAmount);
+		uint256 postRebaseTokenAmount = getSharesByUSTPAmount(_sharesAmount);
 
 		emit SharesBurnt(_account, preRebaseTokenAmount, postRebaseTokenAmount, _sharesAmount);
 

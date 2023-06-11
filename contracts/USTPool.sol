@@ -9,9 +9,9 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./interfaces/ISTBT.sol";
 import "./interfaces/IInterestRateModel.sol";
 import "./interfaces/ILiquidatePool.sol";
-import "./USDP.sol";
+import "./USTP.sol";
 
-contract USDPool is USDP, AccessControl, Pausable {
+contract USTPool is USTP, AccessControl, Pausable {
 	using SafeMath for uint256;
 
 	bytes32 public constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
@@ -23,15 +23,15 @@ contract USDPool is USDP, AccessControl, Pausable {
 	uint256 public constant FEE_COEFFICIENT = 1e8;
 	// Used to calculate shares of STBT deposited by users.
 	uint256 public totalDepositedSharesSTBT;
-	// Used to calculate total supply of USDP.
-	uint256 public totalSupplyUSDP;
+	// Used to calculate total supply of USTP.
+	uint256 public totalSupplyUSTP;
 
 	uint256 public safeCollateralRate = 101 * 1e18;
 	uint256 public reserveFactor;
 
 	// Used to record the user's STBT shares.
 	mapping(address => uint256) public depositedSharesSTBT;
-	// Used to record the user's loan shares of USDP.
+	// Used to record the user's loan shares of USTP.
 	mapping(address => uint256) borrowedShares;
 	uint256 public totalBorrowShares;
 
@@ -40,14 +40,14 @@ contract USDPool is USDP, AccessControl, Pausable {
 
 	// collateral token.
 	ISTBT public stbt;
-	// Used to mint USDP.
+	// Used to mint USTP.
 	IERC20 public usdc;
 	// interest rate model
 	IInterestRateModel public interestRateModel;
 	ILiquidatePool public liquidatePool;
 
 	// the claimable fee for protocol
-	// reserves will be claim with USDP.
+	// reserves will be claim with USTP.
 	uint256 public totalUnclaimReserves;
 
 	event SupplySTBT(address indexed user, uint256 amount, uint256 shares, uint256 timestamp);
@@ -63,22 +63,22 @@ contract USDPool is USDP, AccessControl, Pausable {
 	event LiquidationRecord(
 		address liquidator,
 		address indexed borrower,
-		uint256 usdpAmount,
+		uint256 ustpAmount,
 		uint256 timestamp
 	);
 
-	constructor(address admin, ISTBT _stbt, IERC20 _usdc) ERC20("TProtocol USD", "USDP") {
+	constructor(address admin, ISTBT _stbt, IERC20 _usdc) ERC20("TProtocol USD", "USTP") {
 		_setupRole(DEFAULT_ADMIN_ROLE, admin);
 		stbt = _stbt;
 		usdc = _usdc;
 	}
 
 	modifier realizeInterest() {
-		if (totalSupplyUSDP != 0) {
+		if (totalSupplyUSTP != 0) {
 			uint256 totalInterest = getRPS().mul(block.timestamp.sub(lastCheckpoint));
 			uint256 reserves = totalInterest.mul(reserveFactor).div(FEE_COEFFICIENT);
 
-			totalSupplyUSDP = totalSupplyUSDP.add(totalInterest).sub(reserves);
+			totalSupplyUSTP = totalSupplyUSTP.add(totalInterest).sub(reserves);
 			totalUnclaimReserves = totalUnclaimReserves.add(reserves);
 
 			emit ReservesAdded(reserves, totalUnclaimReserves);
@@ -119,7 +119,7 @@ contract USDPool is USDP, AccessControl, Pausable {
 	function claimReservesFee(
 		address _receiver
 	) external realizeInterest onlyRole(DEFAULT_ADMIN_ROLE) {
-		_mintUSDP(_receiver, totalUnclaimReserves);
+		_mintUSTP(_receiver, totalUnclaimReserves);
 		totalUnclaimReserves = 0;
 	}
 
@@ -143,8 +143,8 @@ contract USDPool is USDP, AccessControl, Pausable {
 	) external onlyRole(POOL_MANAGER_ROLE) realizeInterest {
 		// To ensure 100% utilization.
 		uint256 supplyInterestRate = _interestRateModel.getSupplyInterestRate(
-			totalSupplyUSDP,
-			totalSupplyUSDP
+			totalSupplyUSTP,
+			totalSupplyUSTP
 		);
 		require(
 			supplyInterestRate <= maxInterestRate,
@@ -163,10 +163,10 @@ contract USDPool is USDP, AccessControl, Pausable {
 		require(_amount > 0, "Supply USDC should more then 0.");
 		usdc.transferFrom(msg.sender, address(this), _amount);
 
-		// convert to USDP.
-		uint256 convertToUSDP = _amount.mul(1e12);
+		// convert to USTP.
+		uint256 convertToUSTP = _amount.mul(1e12);
 
-		_mintUSDP(msg.sender, convertToUSDP);
+		_mintUSTP(msg.sender, convertToUSTP);
 
 		emit SupplyUSDC(msg.sender, _amount, block.timestamp);
 	}
@@ -213,7 +213,7 @@ contract USDPool is USDP, AccessControl, Pausable {
 
 	/**
 	 * @notice Withdraw USDC to an address.
-	 * USDP:USDC always 1:1.
+	 * USTP:USDC always 1:1.
 	 * Emits a `WithdrawUSDC` event.
 	 *
 	 * @param _amount the amount of USDC.
@@ -221,10 +221,10 @@ contract USDPool is USDP, AccessControl, Pausable {
 	function withdrawUSDC(uint256 _amount) external whenNotPaused realizeInterest {
 		require(_amount > 0, "Withdraw USDC should more then 0.");
 
-		// convert to USDP.
-		uint256 convertToUSDP = _amount.mul(10 ** 12);
+		// convert to USTP.
+		uint256 convertToUSTP = _amount.mul(10 ** 12);
 
-		_burnUSDP(msg.sender, convertToUSDP);
+		_burnUSTP(msg.sender, convertToUSTP);
 		usdc.transfer(msg.sender, _amount);
 
 		emit WithdrawUSDC(msg.sender, _amount, block.timestamp);
@@ -239,16 +239,16 @@ contract USDPool is USDP, AccessControl, Pausable {
 	function borrowUSDC(uint256 _amount) external whenNotPaused realizeInterest {
 		require(_amount > 0, "Borrow USDC should more then 0.");
 
-		// convert to USDP.
-		uint256 convertToUSDP = _amount.mul(10 ** 12);
+		// convert to USTP.
+		uint256 convertToUSTP = _amount.mul(10 ** 12);
 
-		uint256 borrowShares = getSharesByUSDPAmount(convertToUSDP);
+		uint256 borrowShares = getSharesByUSTPAmount(convertToUSTP);
 		borrowedShares[msg.sender] += borrowShares;
 		totalBorrowShares += borrowShares;
 
 		require(
-			getUSDPAmountByShares(totalBorrowShares) <= totalSupplyUSDP,
-			"shold be less then supply of USDP."
+			getUSTPAmountByShares(totalBorrowShares) <= totalSupplyUSTP,
+			"shold be less then supply of USTP."
 		);
 		_requireIsSafeCollateralRate(msg.sender);
 
@@ -267,10 +267,10 @@ contract USDPool is USDP, AccessControl, Pausable {
 		require(_amount > 0, "Repay USDC should more then 0.");
 
 		usdc.transferFrom(msg.sender, address(this), _amount);
-		// convert to USDP.
-		uint256 convertToUSDP = _amount.mul(1e12);
+		// convert to USTP.
+		uint256 convertToUSTP = _amount.mul(1e12);
 
-		uint256 repayShares = getSharesByUSDPAmount(convertToUSDP);
+		uint256 repayShares = getSharesByUSTPAmount(convertToUSTP);
 		_repay(msg.sender, repayShares);
 
 		emit RepayUSDC(msg.sender, _amount, repayShares, block.timestamp);
@@ -284,9 +284,9 @@ contract USDPool is USDP, AccessControl, Pausable {
 	function repayAll() external whenNotPaused realizeInterest {
 		uint256 userBorrowShares = borrowedShares[msg.sender];
 
-		uint256 repayUSDP = getUSDPAmountByShares(userBorrowShares);
+		uint256 repayUSTP = getUSTPAmountByShares(userBorrowShares);
 		// convert to USDC.
-		uint256 convertToUSDC = repayUSDP.div(1e12) + 1;
+		uint256 convertToUSDC = repayUSTP.div(1e12) + 1;
 		usdc.transferFrom(msg.sender, address(this), convertToUSDC);
 		_repay(msg.sender, userBorrowShares);
 
@@ -299,21 +299,21 @@ contract USDPool is USDP, AccessControl, Pausable {
 	 * Emits a `LiquidationRecord` event.
 	 *
 	 * @param borrower The borrower be liquidated
-	 * @param repayAmount The amount of the USDP to repay
+	 * @param repayAmount The amount of the USTP to repay
 	 */
 	function liquidateBorrow(
 		address borrower,
 		uint256 repayAmount
 	) external whenNotPaused realizeInterest {
-		uint256 borrowedUSD = getUSDPAmountByShares(borrowedShares[borrower]);
+		uint256 borrowedUSD = getUSTPAmountByShares(borrowedShares[borrower]);
 		require(borrowedUSD >= repayAmount, "repayAmount should be less than borrower's debt.");
-		_burnUSDP(msg.sender, repayAmount);
+		_burnUSTP(msg.sender, repayAmount);
 
-		uint256 repayShares = getSharesByUSDPAmount(repayAmount);
+		uint256 repayShares = getSharesByUSTPAmount(repayAmount);
 
 		_repay(borrower, repayShares);
 
-		// always assuming STBT:USDP is 1:1.
+		// always assuming STBT:USTP is 1:1.
 		uint256 lqiuidateShares = stbt.getSharesByAmount(repayAmount);
 		// TODO maybe no need to check.
 		require(
@@ -335,7 +335,7 @@ contract USDPool is USDP, AccessControl, Pausable {
 	 * Emits a `LiquidationRecord` event.
 	 *
 	 * @param borrower The borrower be liquidated
-	 * @param repayAmount The amount of the USDP to repay
+	 * @param repayAmount The amount of the USTP to repay
 	 * @param j token of index for curve pool
 	 * @param minReturn the minimum amount of return
 	 */
@@ -345,15 +345,15 @@ contract USDPool is USDP, AccessControl, Pausable {
 		int128 j,
 		uint256 minReturn
 	) external whenNotPaused realizeInterest {
-		uint256 borrowedUSD = getUSDPAmountByShares(borrowedShares[borrower]);
+		uint256 borrowedUSD = getUSTPAmountByShares(borrowedShares[borrower]);
 		require(borrowedUSD >= repayAmount, "repayAmount should be less than borrower's debt.");
-		_burnUSDP(msg.sender, repayAmount);
+		_burnUSTP(msg.sender, repayAmount);
 
-		uint256 repayShares = getSharesByUSDPAmount(repayAmount);
+		uint256 repayShares = getSharesByUSTPAmount(repayAmount);
 
 		_repay(borrower, repayShares);
 
-		// always assuming STBT:USDP is 1:1.
+		// always assuming STBT:USTP is 1:1.
 		uint256 lqiuidateShares = stbt.getSharesByAmount(repayAmount);
 		// TODO maybe no need to check.
 		require(
@@ -379,46 +379,46 @@ contract USDPool is USDP, AccessControl, Pausable {
 	}
 
 	/**
-	 * @dev mint USDP for _receiver.
+	 * @dev mint USTP for _receiver.
 	 * Emits`Mint` and `Transfer` event.
 	 *
-	 * @param _receiver the address be used to receive USDP.
-	 * @param _amount the amount of USDP.
+	 * @param _receiver the address be used to receive USTP.
+	 * @param _amount the amount of USTP.
 	 */
-	function _mintUSDP(address _receiver, uint256 _amount) internal {
-		uint256 sharesAmount = getSharesByUSDPAmount(_amount);
+	function _mintUSTP(address _receiver, uint256 _amount) internal {
+		uint256 sharesAmount = getSharesByUSTPAmount(_amount);
 		if (sharesAmount == 0) {
-			//USDP shares are 1:1 to USDC at first.
+			//USTP shares are 1:1 to USDC at first.
 			sharesAmount = _amount;
 		}
 		_mintShares(_receiver, sharesAmount);
-		totalSupplyUSDP += _amount;
+		totalSupplyUSTP += _amount;
 		emit Mint(msg.sender, _amount, block.timestamp);
 		emit Transfer(address(0), _receiver, _amount);
 	}
 
 	/**
-	 * @dev burn USDP from _receiver.
+	 * @dev burn USTP from _receiver.
 	 * Emits`Burn` and `Transfer` event.
 	 *
-	 * @param _account the address be used to burn USDP.
-	 * @param _amount the amount of USDP.
+	 * @param _account the address be used to burn USTP.
+	 * @param _amount the amount of USTP.
 	 */
-	function _burnUSDP(address _account, uint256 _amount) internal {
-		uint256 sharesAmount = getSharesByUSDPAmount(_amount);
+	function _burnUSTP(address _account, uint256 _amount) internal {
+		uint256 sharesAmount = getSharesByUSTPAmount(_amount);
 		require(sharesAmount > 0, "shares should be more then 0.");
 		_burnShares(_account, sharesAmount);
-		totalSupplyUSDP -= _amount;
+		totalSupplyUSTP -= _amount;
 		emit Burn(msg.sender, _amount, block.timestamp);
 		emit Transfer(_account, address(0), _amount);
 	}
 
 	/**
-	 * @dev repay USDP for _account
+	 * @dev repay USTP for _account
 	 * Emits`Burn` and `Transfer` event.
 	 *
-	 * @param _account the address be usde to burn USDP.
-	 * @param _repayShares the amount of USDP shares.
+	 * @param _account the address be usde to burn USTP.
+	 * @param _repayShares the amount of USTP shares.
 	 */
 	function _repay(address _account, uint256 _repayShares) internal {
 		borrowedShares[_account] -= _repayShares;
@@ -426,10 +426,10 @@ contract USDPool is USDP, AccessControl, Pausable {
 	}
 
 	/**
-	 * @notice total supply of USDP.
+	 * @notice total supply of USTP.
 	 */
-	function _getTotalSupplyUSDP() internal view override returns (uint256) {
-		return totalSupplyUSDP;
+	function _getTotalSupplyUSTP() internal view override returns (uint256) {
+		return totalSupplyUSTP;
 	}
 
 	/**
@@ -445,7 +445,7 @@ contract USDPool is USDP, AccessControl, Pausable {
 	 * @dev The USD value of the collateral asset must be higher than safeCollateralRate.
 	 */
 	function _requireIsSafeCollateralRate(address user) internal view {
-		uint256 borrowedAmount = getUSDPAmountByShares(borrowedShares[user]);
+		uint256 borrowedAmount = getUSTPAmountByShares(borrowedShares[user]);
 		if (borrowedAmount == 0) {
 			return;
 		}
@@ -460,15 +460,15 @@ contract USDPool is USDP, AccessControl, Pausable {
 	 * @dev revolutions per second
 	 */
 	function getRPS() public view returns (uint256) {
-		uint256 _totalSupplyUSDP = _getTotalSupplyUSDP();
+		uint256 _totalSupplyUSTP = _getTotalSupplyUSTP();
 		uint256 supplyInterestRate = interestRateModel.getSupplyInterestRate(
-			_totalSupplyUSDP,
-			getUSDPAmountByShares(totalBorrowShares)
+			_totalSupplyUSTP,
+			getUSTPAmountByShares(totalBorrowShares)
 		);
 		require(
 			supplyInterestRate <= maxInterestRate,
 			"interest rate should be less than maxInterestRate."
 		);
-		return supplyInterestRate.mul(_totalSupplyUSDP).div(365 days).div(APR_COEFFICIENT);
+		return supplyInterestRate.mul(_totalSupplyUSTP).div(365 days).div(APR_COEFFICIENT);
 	}
 }
