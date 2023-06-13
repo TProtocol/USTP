@@ -305,6 +305,7 @@ contract USTPool is USTP, AccessControl, Pausable {
 		address borrower,
 		uint256 repayAmount
 	) external whenNotPaused realizeInterest {
+		require(msg.sender != borrower, "don't liquidate self");
 		uint256 borrowedUSD = getUSTPAmountByShares(borrowedShares[borrower]);
 		require(borrowedUSD >= repayAmount, "repayAmount should be less than borrower's debt.");
 		_burnUSTP(msg.sender, repayAmount);
@@ -317,8 +318,8 @@ contract USTPool is USTP, AccessControl, Pausable {
 		uint256 lqiuidateShares = stbt.getSharesByAmount(repayAmount);
 		// TODO maybe no need to check.
 		require(
-			lqiuidateShares >= depositedSharesSTBT[borrower],
-			"repayAmount should be less than borrower's debt."
+			depositedSharesSTBT[borrower] >= lqiuidateShares,
+			"lqiuidateShares should be less than borrower's deposit."
 		);
 		totalDepositedSharesSTBT -= lqiuidateShares;
 		depositedSharesSTBT[borrower] -= lqiuidateShares;
@@ -345,6 +346,7 @@ contract USTPool is USTP, AccessControl, Pausable {
 		int128 j,
 		uint256 minReturn
 	) external whenNotPaused realizeInterest {
+		require(msg.sender != borrower, "don't liquidate self");
 		uint256 borrowedUSD = getUSTPAmountByShares(borrowedShares[borrower]);
 		require(borrowedUSD >= repayAmount, "repayAmount should be less than borrower's debt.");
 		_burnUSTP(msg.sender, repayAmount);
@@ -357,12 +359,13 @@ contract USTPool is USTP, AccessControl, Pausable {
 		uint256 lqiuidateShares = stbt.getSharesByAmount(repayAmount);
 		// TODO maybe no need to check.
 		require(
-			lqiuidateShares >= depositedSharesSTBT[borrower],
-			"repayAmount should be less than borrower's debt."
+			depositedSharesSTBT[borrower] >= lqiuidateShares,
+			"lqiuidateShares should be less than borrower's deposit."
 		);
 		totalDepositedSharesSTBT -= lqiuidateShares;
 		depositedSharesSTBT[borrower] -= lqiuidateShares;
 
+		stbt.transfer(address(liquidatePool), repayAmount);
 		liquidatePool.flashLiquidateSTBTByCurve(repayAmount, j, minReturn, msg.sender);
 
 		emit LiquidationRecord(msg.sender, borrower, repayAmount, block.timestamp);
@@ -376,6 +379,16 @@ contract USTPool is USTP, AccessControl, Pausable {
 
 	function getBorrowedSharesOf(address user) external view returns (uint256) {
 		return borrowedShares[user];
+	}
+
+	/**
+	 * @notice Get the borrowed amount of user
+	 *
+	 * @param user the address of borrower
+	 */
+
+	function getBorrowedAmount(address user) external view returns (uint256) {
+		return getUSTPAmountByShares(borrowedShares[user]);
 	}
 
 	/**

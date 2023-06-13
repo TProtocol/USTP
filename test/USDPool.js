@@ -24,12 +24,13 @@ const mineBlockWithTimestamp = async (provider, timestamp) => {
 }
 
 describe("USTPool", function () {
-	let admin, deployer, usdcInvestor, stbtInvestor, mxpRedeemPool
+	let admin, deployer, usdcInvestor, stbtInvestor, mxpRedeemPool, feeCollector
 	let daiToken, usdcToken, usdtToken, stbtToken
 	let stbtSwapPool
 	let priceFeed, interestRateModel
 	let ustpool, liquidatePool
 	let now
+	let tokens
 
 	const permission = {
 		sendAllowed: true,
@@ -38,7 +39,8 @@ describe("USTPool", function () {
 	}
 
 	beforeEach("load fixture", async () => {
-		;[admin, deployer, usdcInvestor, stbtInvestor, mxpRedeemPool] = await ethers.getSigners()
+		;[admin, deployer, usdcInvestor, stbtInvestor, mxpRedeemPool, feeCollector] =
+			await ethers.getSigners()
 		// deploy tokens
 		;({ daiToken, usdcToken, usdtToken } = await deployTokensFixture(
 			deployer,
@@ -68,13 +70,19 @@ describe("USTPool", function () {
 		;({ interestRateModel } = await deployInterestRateModelFixture(deployer))
 
 		await liquidatePool.connect(admin).setCurvePool(stbtSwapPool.address)
+		await liquidatePool.connect(admin).setRedeemPool(mxpRedeemPool.address)
 		await ustpool.connect(admin).initLiquidatePool(liquidatePool.address)
 		await ustpool.connect(admin).setInterestRateModel(interestRateModel.address)
 
+		await stbtToken.connect(deployer).setPermission(mxpRedeemPool.address, permission)
 		await stbtToken.connect(deployer).setPermission(liquidatePool.address, permission)
 		await stbtToken.connect(deployer).setPermission(ustpool.address, permission)
 
+		await liquidatePool.connect(admin).setFeeCollector(feeCollector.address)
+
 		now = (await ethers.provider.getBlock("latest")).timestamp
+
+		tokens = [daiToken, usdcToken, usdtToken]
 	})
 	const amountToSupplyUSDC = ethers.utils.parseUnits("100", 6) // 100 USDC
 	const amountToSupplySTBT = ethers.utils.parseUnits("100", 18) // 100 STBT
@@ -305,6 +313,239 @@ describe("USTPool", function () {
 
 				expect(usdcAmountAfter).to.be.equal(ustpAmount.div(1e12).add(usdcAmountBefore))
 			})
+		})
+	})
+
+	describe("Liquidate", function () {
+		beforeEach(async () => {
+			now = now + ONE_HOUR
+			await mineBlockWithTimestamp(ethers.provider, now)
+			await usdcToken
+				.connect(usdcInvestor)
+				.approve(ustpool.address, amountToSupplyUSDC.mul(10))
+			await ustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC.mul(10))
+			await stbtToken
+				.connect(stbtInvestor)
+				.approve(ustpool.address, amountToSupplySTBT.mul(2))
+			await ustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT.mul(2))
+			await ustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
+		})
+
+		it(`Should be able to liquidate for with zero fee`, async () => {
+			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
+			const beforeUSDPAmount = await ustpool.balanceOf(usdcInvestor.address)
+			await ustpool.connect(usdcInvestor).liquidateBorrow(stbtInvestor.address, liquidateSTBT)
+			const afterUSDPAmount = await ustpool.balanceOf(usdcInvestor.address)
+			// There are some err in interest.
+			expect(beforeUSDPAmount.sub(afterUSDPAmount)).to.be.within(
+				liquidateSTBT.mul(99999).div(100000),
+				liquidateSTBT.mul(100001).div(100000)
+			)
+
+			const liquidationIndex = await liquidatePool.liquidationIndex()
+			await usdcToken.connect(deployer).transfer(liquidatePool.address, amountToSupplyUSDC)
+			const beforeUSDCAmount = await usdcToken.balanceOf(usdcInvestor.address)
+			await liquidatePool.connect(usdcInvestor).finalizeLiquidationById(liquidationIndex)
+			const afterUSDCAmount = await usdcToken.balanceOf(usdcInvestor.address)
+			expect(afterUSDCAmount.sub(beforeUSDCAmount)).to.be.equal(amountToSupplyUSDC)
+		})
+
+		it(`Should be able to liquidate for with fee`, async () => {
+			await liquidatePool.connect(admin).setLiquidateFeeRate(1000000)
+
+			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
+			const beforeUSDPAmount = await ustpool.balanceOf(usdcInvestor.address)
+			await ustpool.connect(usdcInvestor).liquidateBorrow(stbtInvestor.address, liquidateSTBT)
+			const afterUSDPAmount = await ustpool.balanceOf(usdcInvestor.address)
+			// There are some err in interest.
+			expect(beforeUSDPAmount.sub(afterUSDPAmount)).to.be.within(
+				liquidateSTBT.mul(99999).div(100000),
+				liquidateSTBT.mul(100001).div(100000)
+			)
+
+			const fee = amountToSupplyUSDC.mul(1000000).div(100000000)
+
+			const liquidationIndex = await liquidatePool.liquidationIndex()
+			await usdcToken.connect(deployer).transfer(liquidatePool.address, amountToSupplyUSDC)
+			const beforeUSDCAmount = await usdcToken.balanceOf(usdcInvestor.address)
+			await liquidatePool.connect(usdcInvestor).finalizeLiquidationById(liquidationIndex)
+			const afterUSDCAmount = await usdcToken.balanceOf(usdcInvestor.address)
+			expect(afterUSDCAmount.sub(beforeUSDCAmount)).to.be.equal(amountToSupplyUSDC.sub(fee))
+			const feeCollectorBalance = await usdcToken.balanceOf(feeCollector.address)
+			expect(feeCollectorBalance).to.be.equal(fee)
+		})
+
+		it(`Should be able to finalizeLiquidationById for twice`, async () => {
+			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
+			await ustpool.connect(usdcInvestor).liquidateBorrow(stbtInvestor.address, liquidateSTBT)
+			const liquidationIndex = await liquidatePool.liquidationIndex()
+			await usdcToken.connect(deployer).transfer(liquidatePool.address, amountToSupplyUSDC)
+			await liquidatePool.connect(usdcInvestor).finalizeLiquidationById(liquidationIndex)
+			await expect(
+				liquidatePool.connect(usdcInvestor).finalizeLiquidationById(liquidationIndex)
+			).to.be.revertedWith("Withdrawn")
+		})
+
+		it(`Should be able to finalizeLiquidationById from others`, async () => {
+			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
+			await ustpool.connect(usdcInvestor).liquidateBorrow(stbtInvestor.address, liquidateSTBT)
+			const liquidationIndex = await liquidatePool.liquidationIndex()
+			await usdcToken.connect(deployer).transfer(liquidatePool.address, amountToSupplyUSDC)
+			await expect(
+				liquidatePool.connect(stbtInvestor).finalizeLiquidationById(liquidationIndex)
+			).to.be.revertedWith("Not yours.")
+		})
+
+		it(`Should be able to finalizeLiquidationById when the proccess not done yet.`, async () => {
+			await liquidatePool.connect(admin).setProcessPeriod(ONE_MONTH)
+			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
+			await ustpool.connect(usdcInvestor).liquidateBorrow(stbtInvestor.address, liquidateSTBT)
+			const liquidationIndex = await liquidatePool.liquidationIndex()
+			await usdcToken.connect(deployer).transfer(liquidatePool.address, amountToSupplyUSDC)
+			await expect(
+				liquidatePool.connect(usdcInvestor).finalizeLiquidationById(liquidationIndex)
+			).to.be.revertedWith("Not done yet.")
+		})
+
+		it("Should be not able to more than user owns.", async () => {
+			const liquidateSTBT = await ustpool.balanceOf(admin.address)
+			await expect(
+				ustpool.connect(admin).liquidateBorrow(stbtInvestor.address, liquidateSTBT.add(100))
+			).to.be.revertedWith("BALANCE_EXCEEDED")
+		})
+
+		it("Should be not able to liquidate self", async () => {
+			const liquidateSTBT = await ustpool.balanceOf(stbtInvestor.address)
+			await expect(
+				ustpool
+					.connect(stbtInvestor)
+					.liquidateBorrow(stbtInvestor.address, liquidateSTBT.add(100))
+			).to.be.revertedWith("don't liquidate self")
+		})
+
+		it("Should be not able to more than borrower's debt.", async () => {
+			// to realize interest
+			await ustpool.connect(admin).setReserveFactor(0)
+			const liquidateSTBT = await ustpool.getBorrowedAmount(stbtInvestor.address)
+			await expect(
+				ustpool
+					.connect(usdcInvestor)
+					.liquidateBorrow(stbtInvestor.address, liquidateSTBT.mul(2))
+			).to.be.revertedWith("repayAmount should be less than borrower's debt.")
+		})
+	})
+
+	describe("Flash liquidate", function () {
+		let testList = [
+			{
+				tokenName: "DAI",
+				tokenIndex: 1,
+			},
+			{
+				tokenName: "USDC",
+				tokenIndex: 2,
+			},
+			{
+				tokenName: "USDT",
+				tokenIndex: 3,
+			},
+		]
+		beforeEach(async () => {
+			now = now + ONE_HOUR
+			await mineBlockWithTimestamp(ethers.provider, now)
+			await usdcToken
+				.connect(usdcInvestor)
+				.approve(ustpool.address, amountToSupplyUSDC.mul(10))
+			await ustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC.mul(10))
+			await stbtToken
+				.connect(stbtInvestor)
+				.approve(ustpool.address, amountToSupplySTBT.mul(2))
+			await ustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT.mul(2))
+			await ustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
+		})
+
+		testList.forEach(({ tokenName, tokenIndex }, i) => {
+			it(`Should be able to flash liquidate for ${tokenName} with zero fee`, async () => {
+				const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
+
+				const beforeUSDPAmount = await ustpool.balanceOf(usdcInvestor.address)
+				const liquidateOut = await liquidatePool.getFlashLiquidateAmountOutFromCurve(
+					liquidateSTBT,
+					tokenIndex
+				)
+
+				const beforeBalance = await tokens[i].balanceOf(usdcInvestor.address)
+				await ustpool
+					.connect(usdcInvestor)
+					.flashLiquidateBorrow(stbtInvestor.address, liquidateSTBT, tokenIndex, 0)
+				const afterBalance = await tokens[i].balanceOf(usdcInvestor.address)
+				const afterUSDPAmount = await ustpool.balanceOf(usdcInvestor.address)
+				expect(afterBalance.sub(beforeBalance)).to.be.equal(liquidateOut)
+				// There are some err in interest.
+				expect(beforeUSDPAmount.sub(afterUSDPAmount)).to.be.within(
+					liquidateSTBT.mul(99999).div(100000),
+					liquidateSTBT.mul(100001).div(100000)
+				)
+			})
+
+			it(`Should be able to flash liquidate for ${tokenName} with fee`, async () => {
+				await liquidatePool.connect(admin).setLiquidateFeeRate(1000000)
+				const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
+
+				const beforeUSDPAmount = await ustpool.balanceOf(usdcInvestor.address)
+
+				const liquidateOut = await liquidatePool.getFlashLiquidateAmountOutFromCurve(
+					liquidateSTBT,
+					tokenIndex
+				)
+				const fee = liquidateOut.mul(1000000).div(100000000)
+				const amountAfterFee = liquidateOut.sub(fee)
+
+				const beforeBalance = await tokens[i].balanceOf(usdcInvestor.address)
+				await ustpool
+					.connect(usdcInvestor)
+					.flashLiquidateBorrow(stbtInvestor.address, liquidateSTBT, tokenIndex, 0)
+				const afterBalance = await tokens[i].balanceOf(usdcInvestor.address)
+				expect(afterBalance.sub(beforeBalance)).to.be.equal(amountAfterFee)
+
+				const feeCollectorBalance = await tokens[i].balanceOf(feeCollector.address)
+				expect(feeCollectorBalance).to.be.equal(fee)
+				const afterUSDPAmount = await ustpool.balanceOf(usdcInvestor.address)
+				// There are some err in interest.
+				expect(beforeUSDPAmount.sub(afterUSDPAmount)).to.be.within(
+					liquidateSTBT.mul(99999).div(100000),
+					liquidateSTBT.mul(100001).div(100000)
+				)
+			})
+		})
+
+		it("Should be not able to more than user owns.", async () => {
+			const liquidateSTBT = await ustpool.balanceOf(admin.address)
+			await expect(
+				ustpool
+					.connect(admin)
+					.flashLiquidateBorrow(stbtInvestor.address, liquidateSTBT.add(100), 1, 0)
+			).to.be.revertedWith("BALANCE_EXCEEDED")
+		})
+
+		it("Should be not able to liquidate self", async () => {
+			const liquidateSTBT = await ustpool.balanceOf(stbtInvestor.address)
+			await expect(
+				ustpool
+					.connect(stbtInvestor)
+					.flashLiquidateBorrow(stbtInvestor.address, liquidateSTBT.add(100), 1, 0)
+			).to.be.revertedWith("don't liquidate self")
+		})
+
+		it("Should be not able to more than borrower's debt.", async () => {
+			// to realize interest
+			await ustpool.connect(admin).setReserveFactor(0)
+			const liquidateSTBT = await ustpool.getBorrowedAmount(stbtInvestor.address)
+			await expect(
+				ustpool
+					.connect(usdcInvestor)
+					.flashLiquidateBorrow(stbtInvestor.address, liquidateSTBT.mul(2), 1, 0)
+			).to.be.revertedWith("repayAmount should be less than borrower's debt.")
 		})
 	})
 })
