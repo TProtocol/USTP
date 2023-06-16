@@ -146,14 +146,14 @@ async function deployMockPriceFeedFixture(deployer) {
 	return { priceFeed }
 }
 
-async function deployUSTPoolFixture(admin, deployer, stbt, usdc) {
-	const USTPool = await ethers.getContractFactory("USTPool")
-	let ustpool = await USTPool.connect(deployer).deploy(admin.address, stbt.address, usdc.address)
-	await ustpool.deployed()
+async function deployiUSTPoolFixture(admin, deployer, stbt, usdc) {
+	const iUSTPool = await ethers.getContractFactory("iUSTPool")
+	let iustpool = await iUSTPool.connect(deployer).deploy(admin.address, stbt.address, usdc.address)
+	await iustpool.deployed()
 	// SET ROLE
-	let POOL_MANAGER_ROLE = await ustpool.POOL_MANAGER_ROLE()
-	await ustpool.connect(admin).grantRole(POOL_MANAGER_ROLE, admin.address)
-	return { ustpool }
+	let POOL_MANAGER_ROLE = await iustpool.POOL_MANAGER_ROLE()
+	await iustpool.connect(admin).grantRole(POOL_MANAGER_ROLE, admin.address)
+	return { iustpool }
 }
 
 async function deployInterestRateModelFixture(deployer) {
@@ -166,7 +166,7 @@ async function deployInterestRateModelFixture(deployer) {
 async function deployLiquidatePoolFixture(
 	admin,
 	deployer,
-	ustpool,
+	iustpool,
 	mxpRedeemPool,
 	stbt,
 	usdc,
@@ -176,7 +176,7 @@ async function deployLiquidatePoolFixture(
 	const LiquidatePool = await ethers.getContractFactory("LiquidatePool")
 	let liquidatePool = await LiquidatePool.connect(deployer).deploy(
 		admin.address,
-		ustpool.address,
+		iustpool.address,
 		mxpRedeemPool.address,
 		stbt.address,
 		usdc.address,
@@ -191,7 +191,7 @@ module.exports = {
 	deployTokensFixture,
 	deployCurvePoolFixture,
 	deployMockPriceFeedFixture,
-	deployUSTPoolFixture,
+	deployiUSTPoolFixture,
 	deployLiquidatePoolFixture,
 	deployInterestRateModelFixture,
 	deploySTBTTokensFixture,
