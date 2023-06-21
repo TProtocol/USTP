@@ -35,6 +35,10 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	mapping(address => uint256) borrowedShares;
 	uint256 public totalBorrowShares;
 
+	// Used to be a flash liquidate provider
+	mapping(address => bool) flashLiquidateProvider;
+	mapping(address => bool) pendingFlashLiquidateProvider;
+
 	// We assume that the interest rate will not exceed 10%.
 	uint256 public constant maxInterestRate = APR_COEFFICIENT / 10;
 
@@ -66,6 +70,11 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 		uint256 iUSTPAmount,
 		uint256 timestamp
 	);
+
+	event SafeCollateralRateChanged(uint256 newSafeRatio);
+
+	// 0 is not, 1 is pending, 2 is a provider.
+	event FlashLiquidateProvider(address user, uint8 status);
 
 	constructor(
 		address admin,
@@ -155,6 +164,17 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 			"interest rate should be less than maxInterestRate."
 		);
 		interestRateModel = _interestRateModel;
+	}
+
+	/**
+	 * @notice  safeCollateralRate
+	 */
+	function setSafeCollateralRate(
+		uint256 newSafeRatio
+	) external onlyRole(POOL_MANAGER_ROLE) realizeInterest {
+		require(newSafeRatio >= 101 * 1e18, "Safe CollateralRate should more than 101%");
+		safeCollateralRate = newSafeRatio;
+		emit SafeCollateralRateChanged(newSafeRatio);
 	}
 
 	/**
@@ -350,7 +370,8 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 		int128 j,
 		uint256 minReturn
 	) external whenNotPaused realizeInterest {
-		require(msg.sender != borrower, "don't liquidate self");
+		require(flashLiquidateProvider[borrower], "borrower is not a provider.");
+		require(msg.sender != borrower, "don't liquidate self.");
 		uint256 borrowedUSD = getiUSTPAmountByShares(borrowedShares[borrower]);
 		require(borrowedUSD >= repayAmount, "repayAmount should be less than borrower's debt.");
 		_burniUSTP(msg.sender, repayAmount);
@@ -373,6 +394,33 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 		liquidatePool.flashLiquidateSTBTByCurve(repayAmount, j, minReturn, msg.sender);
 
 		emit LiquidationRecord(msg.sender, borrower, repayAmount, block.timestamp);
+	}
+
+	/**
+	 * @notice User chooses to apply a provider
+	 */
+	function applyFlashLiquidateProvider() external {
+		pendingFlashLiquidateProvider[msg.sender] = true;
+		emit FlashLiquidateProvider(msg.sender, 1);
+	}
+
+	/**
+	 * @notice User chooses to cancel a provider
+	 */
+	function cancelFlashLiquidateProvider() external {
+		pendingFlashLiquidateProvider[msg.sender] = false;
+		flashLiquidateProvider[msg.sender] = false;
+		emit FlashLiquidateProvider(msg.sender, 0);
+	}
+
+	/**
+	 * @notice Admin accept a apply for provider
+	 */
+	function acceptFlashLiquidateProvider(address user) external onlyRole(POOL_MANAGER_ROLE) {
+		require(pendingFlashLiquidateProvider[user], "the user did not apply.");
+		pendingFlashLiquidateProvider[user] = false;
+		flashLiquidateProvider[user] = true;
+		emit FlashLiquidateProvider(user, 2);
 	}
 
 	/**

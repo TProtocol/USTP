@@ -334,7 +334,9 @@ describe("iUSTPool", function () {
 		it(`Should be able to liquidate for with zero fee`, async () => {
 			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
 			const beforeUSDPAmount = await iustpool.balanceOf(usdcInvestor.address)
-			await iustpool.connect(usdcInvestor).liquidateBorrow(stbtInvestor.address, liquidateSTBT)
+			await iustpool
+				.connect(usdcInvestor)
+				.liquidateBorrow(stbtInvestor.address, liquidateSTBT)
 			const afterUSDPAmount = await iustpool.balanceOf(usdcInvestor.address)
 			// There are some err in interest.
 			expect(beforeUSDPAmount.sub(afterUSDPAmount)).to.be.within(
@@ -355,7 +357,9 @@ describe("iUSTPool", function () {
 
 			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
 			const beforeUSDPAmount = await iustpool.balanceOf(usdcInvestor.address)
-			await iustpool.connect(usdcInvestor).liquidateBorrow(stbtInvestor.address, liquidateSTBT)
+			await iustpool
+				.connect(usdcInvestor)
+				.liquidateBorrow(stbtInvestor.address, liquidateSTBT)
 			const afterUSDPAmount = await iustpool.balanceOf(usdcInvestor.address)
 			// There are some err in interest.
 			expect(beforeUSDPAmount.sub(afterUSDPAmount)).to.be.within(
@@ -377,7 +381,9 @@ describe("iUSTPool", function () {
 
 		it(`Should be able to finalizeLiquidationById for twice`, async () => {
 			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
-			await iustpool.connect(usdcInvestor).liquidateBorrow(stbtInvestor.address, liquidateSTBT)
+			await iustpool
+				.connect(usdcInvestor)
+				.liquidateBorrow(stbtInvestor.address, liquidateSTBT)
 			const liquidationIndex = await liquidatePool.liquidationIndex()
 			await usdcToken.connect(deployer).transfer(liquidatePool.address, amountToSupplyUSDC)
 			await liquidatePool.connect(usdcInvestor).finalizeLiquidationById(liquidationIndex)
@@ -388,7 +394,9 @@ describe("iUSTPool", function () {
 
 		it(`Should be able to finalizeLiquidationById from others`, async () => {
 			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
-			await iustpool.connect(usdcInvestor).liquidateBorrow(stbtInvestor.address, liquidateSTBT)
+			await iustpool
+				.connect(usdcInvestor)
+				.liquidateBorrow(stbtInvestor.address, liquidateSTBT)
 			const liquidationIndex = await liquidatePool.liquidationIndex()
 			await usdcToken.connect(deployer).transfer(liquidatePool.address, amountToSupplyUSDC)
 			await expect(
@@ -399,7 +407,9 @@ describe("iUSTPool", function () {
 		it(`Should be able to finalizeLiquidationById when the proccess not done yet.`, async () => {
 			await liquidatePool.connect(admin).setProcessPeriod(ONE_MONTH)
 			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
-			await iustpool.connect(usdcInvestor).liquidateBorrow(stbtInvestor.address, liquidateSTBT)
+			await iustpool
+				.connect(usdcInvestor)
+				.liquidateBorrow(stbtInvestor.address, liquidateSTBT)
 			const liquidationIndex = await liquidatePool.liquidationIndex()
 			await usdcToken.connect(deployer).transfer(liquidatePool.address, amountToSupplyUSDC)
 			await expect(
@@ -410,7 +420,9 @@ describe("iUSTPool", function () {
 		it("Should be not able to more than user owns.", async () => {
 			const liquidateSTBT = await iustpool.balanceOf(admin.address)
 			await expect(
-				iustpool.connect(admin).liquidateBorrow(stbtInvestor.address, liquidateSTBT.add(100))
+				iustpool
+					.connect(admin)
+					.liquidateBorrow(stbtInvestor.address, liquidateSTBT.add(100))
 			).to.be.revertedWith("BALANCE_EXCEEDED")
 		})
 
@@ -462,6 +474,9 @@ describe("iUSTPool", function () {
 				.approve(iustpool.address, amountToSupplySTBT.mul(2))
 			await iustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT.mul(2))
 			await iustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
+
+			await iustpool.connect(stbtInvestor).applyFlashLiquidateProvider()
+			await iustpool.connect(admin).acceptFlashLiquidateProvider(stbtInvestor.address)
 		})
 
 		testList.forEach(({ tokenName, tokenIndex }, i) => {
@@ -534,7 +549,7 @@ describe("iUSTPool", function () {
 				iustpool
 					.connect(stbtInvestor)
 					.flashLiquidateBorrow(stbtInvestor.address, liquidateSTBT.add(100), 1, 0)
-			).to.be.revertedWith("don't liquidate self")
+			).to.be.revertedWith("don't liquidate self.")
 		})
 
 		it("Should be not able to more than borrower's debt.", async () => {
