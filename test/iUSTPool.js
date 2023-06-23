@@ -18,6 +18,8 @@ const ONE_WEEK = ONE_DAY * 7
 const ONE_MONTH = ONE_DAY * 30
 const ONE_YEAR = ONE_DAY * 365
 
+const BIGNUMBER = new ethers.BigNumber.from(2).pow(200)
+
 const mineBlockWithTimestamp = async (provider, timestamp) => {
 	await provider.send("evm_mine", [timestamp])
 	return Promise.resolve()
@@ -239,6 +241,69 @@ describe("iUSTPool", function () {
 				await expect(
 					iustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
 				).to.be.revertedWith("Cannot be lower than the safeCollateralRate.")
+			})
+		})
+	})
+
+	describe("Repay", function () {
+		beforeEach(async () => {
+			now = now + ONE_HOUR
+			await mineBlockWithTimestamp(ethers.provider, now)
+			await interestRateModel.connect(deployer).setAPR(0)
+			// to realize interest
+			await iustpool.connect(admin).setReserveFactor(0)
+			await usdcToken.connect(usdcInvestor).approve(iustpool.address, amountToSupplyUSDC)
+			await iustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
+			await stbtToken.connect(stbtInvestor).approve(iustpool.address, amountToSupplySTBT)
+			await iustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT)
+
+			await iustpool.connect(stbtInvestor).borrowUSDC(amountToBorrowUSDC)
+			await usdcToken.connect(stbtInvestor).approve(iustpool.address, BIGNUMBER)
+		})
+		describe("Repay USDC", function () {
+			it("Should be able to repay 50%", async function () {
+				const usdcAmountBefore = await usdcToken.balanceOf(stbtInvestor.address)
+
+				const borrowSharesBefore = await iustpool.getBorrowedSharesOf(stbtInvestor.address)
+				const borrowiUSDP = (await iustpool.getBorrowedAmount(stbtInvestor.address)).div(2)
+
+				const borrowUSDC = borrowiUSDP.div(1e12)
+
+				const repayShares = await iustpool.getSharesByiUSTPAmount(borrowiUSDP)
+
+				await iustpool.connect(stbtInvestor).repayUSDC(borrowUSDC)
+
+				const usdcAmountAfter = await usdcToken.balanceOf(stbtInvestor.address)
+				const borrowSharesAfter = await iustpool.getBorrowedSharesOf(stbtInvestor.address)
+
+				expect(borrowSharesAfter).to.be.equal(borrowSharesBefore.sub(repayShares))
+				expect(await iustpool.totalBorrowShares()).to.be.equal(borrowSharesAfter)
+				expect(usdcAmountBefore).to.be.equal(usdcAmountAfter.add(borrowUSDC))
+			})
+			it("Should be able to repay 100%", async function () {
+				const usdcAmountBefore = await usdcToken.balanceOf(stbtInvestor.address)
+
+				const borrowSharesBefore = await iustpool.getBorrowedSharesOf(stbtInvestor.address)
+				const borrowiUSDP = await iustpool.getBorrowedAmount(stbtInvestor.address)
+
+				const borrowUSDC = borrowiUSDP.div(1e12)
+
+				const repayShares = await iustpool.getSharesByiUSTPAmount(borrowiUSDP)
+
+				await iustpool.connect(stbtInvestor).repayUSDC(borrowUSDC)
+
+				const usdcAmountAfter = await usdcToken.balanceOf(stbtInvestor.address)
+				const borrowSharesAfter = await iustpool.getBorrowedSharesOf(stbtInvestor.address)
+
+				expect(borrowSharesAfter).to.be.equal(borrowSharesBefore.sub(repayShares))
+				expect(await iustpool.totalBorrowShares()).to.be.equal(borrowSharesAfter)
+				expect(usdcAmountBefore).to.be.equal(usdcAmountAfter.add(borrowUSDC))
+			})
+
+			it("Should fail if repay zero USDC", async function () {
+				await expect(iustpool.connect(stbtInvestor).repayUSDC(0)).to.be.revertedWith(
+					"Repay USDC should more then 0."
+				)
 			})
 		})
 	})
