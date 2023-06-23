@@ -196,6 +196,13 @@ async function deployiUSTPFixture(admin, deployer, nUSTP) {
 	return { iUSTPtoken }
 }
 
+async function deployUSTPFixture(admin, deployer, nUSTP) {
+	const USTP = await ethers.getContractFactory("USTP")
+	let USTPtoken = await USTP.connect(deployer).deploy(admin.address, nUSTP.address)
+	await USTPtoken.deployed()
+	return { USTPtoken }
+}
+
 module.exports = {
 	deployTokensFixture,
 	deployCurvePoolFixture,
@@ -205,4 +212,5 @@ module.exports = {
 	deployInterestRateModelFixture,
 	deploySTBTTokensFixture,
 	deployiUSTPFixture,
+	deployUSTPFixture,
 }
