@@ -6,7 +6,7 @@ const {
 	deployTokensFixture,
 	deployCurvePoolFixture,
 	deployMockPriceFeedFixture,
-	deployiUSTPoolFixture,
+	deploynUSTPoolFixture,
 	deployLiquidatePoolFixture,
 	deployInterestRateModelFixture,
 	deploySTBTTokensFixture,
@@ -25,7 +25,7 @@ const mineBlockWithTimestamp = async (provider, timestamp) => {
 	return Promise.resolve()
 }
 
-describe("iUSTPool", function () {
+describe("nUSTPool", function () {
 	let admin, deployer, usdcInvestor, stbtInvestor, mxpRedeemPool, feeCollector
 	let daiToken, usdcToken, usdtToken, stbtToken
 	let stbtSwapPool
@@ -58,7 +58,7 @@ describe("iUSTPool", function () {
 			stbtToken
 		))
 		;({ priceFeed } = await deployMockPriceFeedFixture(deployer))
-		;({ iustpool } = await deployiUSTPoolFixture(admin, deployer, stbtToken, usdcToken))
+		;({ iustpool } = await deploynUSTPoolFixture(admin, deployer, stbtToken, usdcToken))
 		;({ liquidatePool } = await deployLiquidatePoolFixture(
 			admin,
 			deployer,
@@ -196,7 +196,7 @@ describe("iUSTPool", function () {
 			it("Should be able to borrow", async function () {
 				const usdcAmountBefore = await usdcToken.balanceOf(stbtInvestor.address)
 
-				const borrowShares = await iustpool.getSharesByiUSTPAmount(
+				const borrowShares = await iustpool.getSharesBynUSTPAmount(
 					amountToBorrowUSDC.mul(1e12)
 				)
 				await iustpool.connect(stbtInvestor).borrowUSDC(amountToBorrowUSDC)
@@ -219,7 +219,7 @@ describe("iUSTPool", function () {
 				const totalSupplySTBT = await stbtToken.totalSupply()
 				await stbtToken.connect(deployer).distributeInterests(totalSupplySTBT, now, now + 1)
 
-				const borrowShares = await iustpool.getSharesByiUSTPAmount(doubleBorrow.mul(1e12))
+				const borrowShares = await iustpool.getSharesBynUSTPAmount(doubleBorrow.mul(1e12))
 				await iustpool.connect(stbtInvestor).borrowUSDC(doubleBorrow)
 
 				const usdcAmountAfter = await usdcToken.balanceOf(stbtInvestor.address)
@@ -269,7 +269,7 @@ describe("iUSTPool", function () {
 
 				const borrowUSDC = borrowiUSDP.div(1e12)
 
-				const repayShares = await iustpool.getSharesByiUSTPAmount(borrowiUSDP)
+				const repayShares = await iustpool.getSharesBynUSTPAmount(borrowiUSDP)
 
 				await iustpool.connect(stbtInvestor).repayUSDC(borrowUSDC)
 
@@ -288,7 +288,7 @@ describe("iUSTPool", function () {
 
 				const borrowUSDC = borrowiUSDP.div(1e12)
 
-				const repayShares = await iustpool.getSharesByiUSTPAmount(borrowiUSDP)
+				const repayShares = await iustpool.getSharesBynUSTPAmount(borrowiUSDP)
 
 				await iustpool.connect(stbtInvestor).repayUSDC(borrowUSDC)
 

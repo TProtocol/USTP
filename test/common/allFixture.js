@@ -146,9 +146,11 @@ async function deployMockPriceFeedFixture(deployer) {
 	return { priceFeed }
 }
 
-async function deployiUSTPoolFixture(admin, deployer, stbt, usdc) {
-	const iUSTPool = await ethers.getContractFactory("iUSTPool")
-	let iustpool = await iUSTPool.connect(deployer).deploy(admin.address, stbt.address, usdc.address)
+async function deploynUSTPoolFixture(admin, deployer, stbt, usdc) {
+	const nUSTPool = await ethers.getContractFactory("nUSTPool")
+	let iustpool = await nUSTPool
+		.connect(deployer)
+		.deploy(admin.address, stbt.address, usdc.address)
 	await iustpool.deployed()
 	// SET ROLE
 	let POOL_MANAGER_ROLE = await iustpool.POOL_MANAGER_ROLE()
@@ -191,7 +193,7 @@ module.exports = {
 	deployTokensFixture,
 	deployCurvePoolFixture,
 	deployMockPriceFeedFixture,
-	deployiUSTPoolFixture,
+	deploynUSTPoolFixture,
 	deployLiquidatePoolFixture,
 	deployInterestRateModelFixture,
 	deploySTBTTokensFixture,

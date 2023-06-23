@@ -9,9 +9,9 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./interfaces/ISTBT.sol";
 import "./interfaces/IInterestRateModel.sol";
 import "./interfaces/ILiquidatePool.sol";
-import "./iUSTP.sol";
+import "./nUSTP.sol";
 
-contract iUSTPool is iUSTP, AccessControl, Pausable {
+contract nUSTPool is nUSTP, AccessControl, Pausable {
 	using SafeMath for uint256;
 
 	bytes32 public constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
@@ -23,15 +23,15 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	uint256 public constant FEE_COEFFICIENT = 1e8;
 	// Used to calculate shares of STBT deposited by users.
 	uint256 public totalDepositedSharesSTBT;
-	// Used to calculate total supply of iUSTP.
-	uint256 public totalSupplyiUSTP;
+	// Used to calculate total supply of nUSTP.
+	uint256 public totalSupplynUSTP;
 
 	uint256 public safeCollateralRate = 101 * 1e18;
 	uint256 public reserveFactor;
 
 	// Used to record the user's STBT shares.
 	mapping(address => uint256) public depositedSharesSTBT;
-	// Used to record the user's loan shares of iUSTP.
+	// Used to record the user's loan shares of nUSTP.
 	mapping(address => uint256) borrowedShares;
 	uint256 public totalBorrowShares;
 
@@ -44,14 +44,14 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 
 	// collateral token.
 	ISTBT public stbt;
-	// Used to mint iUSTP.
+	// Used to mint nUSTP.
 	IERC20 public usdc;
 	// interest rate model
 	IInterestRateModel public interestRateModel;
 	ILiquidatePool public liquidatePool;
 
 	// the claimable fee for protocol
-	// reserves will be claim with iUSTP.
+	// reserves will be claim with nUSTP.
 	uint256 public totalUnclaimReserves;
 
 	event SupplySTBT(address indexed user, uint256 amount, uint256 shares, uint256 timestamp);
@@ -67,7 +67,7 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	event LiquidationRecord(
 		address liquidator,
 		address indexed borrower,
-		uint256 iUSTPAmount,
+		uint256 nUSTPAmount,
 		uint256 timestamp
 	);
 
@@ -80,18 +80,18 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 		address admin,
 		ISTBT _stbt,
 		IERC20 _usdc
-	) ERC20("Interest-bearing USD of TProtocol", "iUSTP") {
+	) ERC20("Interest-bearing USD of TProtocol", "nUSTP") {
 		_setupRole(DEFAULT_ADMIN_ROLE, admin);
 		stbt = _stbt;
 		usdc = _usdc;
 	}
 
 	modifier realizeInterest() {
-		if (totalSupplyiUSTP != 0) {
+		if (totalSupplynUSTP != 0) {
 			uint256 totalInterest = getRPS().mul(block.timestamp.sub(lastCheckpoint));
 			uint256 reserves = totalInterest.mul(reserveFactor).div(FEE_COEFFICIENT);
 
-			totalSupplyiUSTP = totalSupplyiUSTP.add(totalInterest).sub(reserves);
+			totalSupplynUSTP = totalSupplynUSTP.add(totalInterest).sub(reserves);
 			totalUnclaimReserves = totalUnclaimReserves.add(reserves);
 
 			emit ReservesAdded(reserves, totalUnclaimReserves);
@@ -132,7 +132,7 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	function claimReservesFee(
 		address _receiver
 	) external realizeInterest onlyRole(DEFAULT_ADMIN_ROLE) {
-		_mintiUSTP(_receiver, totalUnclaimReserves);
+		_mintnUSTP(_receiver, totalUnclaimReserves);
 		totalUnclaimReserves = 0;
 	}
 
@@ -156,8 +156,8 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	) external onlyRole(POOL_MANAGER_ROLE) realizeInterest {
 		// To ensure 100% utilization.
 		uint256 supplyInterestRate = _interestRateModel.getSupplyInterestRate(
-			totalSupplyiUSTP,
-			totalSupplyiUSTP
+			totalSupplynUSTP,
+			totalSupplynUSTP
 		);
 		require(
 			supplyInterestRate <= maxInterestRate,
@@ -187,10 +187,10 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 		require(_amount > 0, "Supply USDC should more then 0.");
 		usdc.transferFrom(msg.sender, address(this), _amount);
 
-		// convert to iUSTP.
-		uint256 convertToiUSTP = _amount.mul(1e12);
+		// convert to nUSTP.
+		uint256 convertTonUSTP = _amount.mul(1e12);
 
-		_mintiUSTP(msg.sender, convertToiUSTP);
+		_mintnUSTP(msg.sender, convertTonUSTP);
 
 		emit SupplyUSDC(msg.sender, _amount, block.timestamp);
 	}
@@ -237,7 +237,7 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 
 	/**
 	 * @notice Withdraw USDC to an address.
-	 * iUSTP:USDC always 1:1.
+	 * nUSTP:USDC always 1:1.
 	 * Emits a `WithdrawUSDC` event.
 	 *
 	 * @param _amount the amount of USDC.
@@ -245,10 +245,10 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	function withdrawUSDC(uint256 _amount) external whenNotPaused realizeInterest {
 		require(_amount > 0, "Withdraw USDC should more then 0.");
 
-		// convert to iUSTP.
-		uint256 convertToiUSTP = _amount.mul(10 ** 12);
+		// convert to nUSTP.
+		uint256 convertTonUSTP = _amount.mul(10 ** 12);
 
-		_burniUSTP(msg.sender, convertToiUSTP);
+		_burnnUSTP(msg.sender, convertTonUSTP);
 		usdc.transfer(msg.sender, _amount);
 
 		emit WithdrawUSDC(msg.sender, _amount, block.timestamp);
@@ -263,16 +263,16 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	function borrowUSDC(uint256 _amount) external whenNotPaused realizeInterest {
 		require(_amount > 0, "Borrow USDC should more then 0.");
 
-		// convert to iUSTP.
-		uint256 convertToiUSTP = _amount.mul(10 ** 12);
+		// convert to nUSTP.
+		uint256 convertTonUSTP = _amount.mul(10 ** 12);
 
-		uint256 borrowShares = getSharesByiUSTPAmount(convertToiUSTP);
+		uint256 borrowShares = getSharesBynUSTPAmount(convertTonUSTP);
 		borrowedShares[msg.sender] += borrowShares;
 		totalBorrowShares += borrowShares;
 
 		require(
-			getiUSTPAmountByShares(totalBorrowShares) <= totalSupplyiUSTP,
-			"shold be less then supply of iUSTP."
+			getnUSTPAmountByShares(totalBorrowShares) <= totalSupplynUSTP,
+			"shold be less then supply of nUSTP."
 		);
 		_requireIsSafeCollateralRate(msg.sender);
 
@@ -291,10 +291,10 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 		require(_amount > 0, "Repay USDC should more then 0.");
 
 		usdc.transferFrom(msg.sender, address(this), _amount);
-		// convert to iUSTP.
-		uint256 convertToiUSTP = _amount.mul(1e12);
+		// convert to nUSTP.
+		uint256 convertTonUSTP = _amount.mul(1e12);
 
-		uint256 repayShares = getSharesByiUSTPAmount(convertToiUSTP);
+		uint256 repayShares = getSharesBynUSTPAmount(convertTonUSTP);
 		_repay(msg.sender, repayShares);
 
 		emit RepayUSDC(msg.sender, _amount, repayShares, block.timestamp);
@@ -308,9 +308,9 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	function repayAll() external whenNotPaused realizeInterest {
 		uint256 userBorrowShares = borrowedShares[msg.sender];
 
-		uint256 repayiUSTP = getiUSTPAmountByShares(userBorrowShares);
+		uint256 repaynUSTP = getnUSTPAmountByShares(userBorrowShares);
 		// convert to USDC.
-		uint256 convertToUSDC = repayiUSTP.div(1e12) + 1;
+		uint256 convertToUSDC = repaynUSTP.div(1e12) + 1;
 		usdc.transferFrom(msg.sender, address(this), convertToUSDC);
 		_repay(msg.sender, userBorrowShares);
 
@@ -323,22 +323,22 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	 * Emits a `LiquidationRecord` event.
 	 *
 	 * @param borrower The borrower be liquidated
-	 * @param repayAmount The amount of the iUSTP to repay
+	 * @param repayAmount The amount of the nUSTP to repay
 	 */
 	function liquidateBorrow(
 		address borrower,
 		uint256 repayAmount
 	) external whenNotPaused realizeInterest {
 		require(msg.sender != borrower, "don't liquidate self");
-		uint256 borrowedUSD = getiUSTPAmountByShares(borrowedShares[borrower]);
+		uint256 borrowedUSD = getnUSTPAmountByShares(borrowedShares[borrower]);
 		require(borrowedUSD >= repayAmount, "repayAmount should be less than borrower's debt.");
-		_burniUSTP(msg.sender, repayAmount);
+		_burnnUSTP(msg.sender, repayAmount);
 
-		uint256 repayShares = getSharesByiUSTPAmount(repayAmount);
+		uint256 repayShares = getSharesBynUSTPAmount(repayAmount);
 
 		_repay(borrower, repayShares);
 
-		// always assuming STBT:iUSTP is 1:1.
+		// always assuming STBT:nUSTP is 1:1.
 		uint256 lqiuidateShares = stbt.getSharesByAmount(repayAmount);
 		// TODO maybe no need to check.
 		require(
@@ -360,7 +360,7 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	 * Emits a `LiquidationRecord` event.
 	 *
 	 * @param borrower The borrower be liquidated
-	 * @param repayAmount The amount of the iUSTP to repay
+	 * @param repayAmount The amount of the nUSTP to repay
 	 * @param j token of index for curve pool
 	 * @param minReturn the minimum amount of return
 	 */
@@ -372,15 +372,15 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	) external whenNotPaused realizeInterest {
 		require(flashLiquidateProvider[borrower], "borrower is not a provider.");
 		require(msg.sender != borrower, "don't liquidate self.");
-		uint256 borrowedUSD = getiUSTPAmountByShares(borrowedShares[borrower]);
+		uint256 borrowedUSD = getnUSTPAmountByShares(borrowedShares[borrower]);
 		require(borrowedUSD >= repayAmount, "repayAmount should be less than borrower's debt.");
-		_burniUSTP(msg.sender, repayAmount);
+		_burnnUSTP(msg.sender, repayAmount);
 
-		uint256 repayShares = getSharesByiUSTPAmount(repayAmount);
+		uint256 repayShares = getSharesBynUSTPAmount(repayAmount);
 
 		_repay(borrower, repayShares);
 
-		// always assuming STBT:iUSTP is 1:1.
+		// always assuming STBT:nUSTP is 1:1.
 		uint256 lqiuidateShares = stbt.getSharesByAmount(repayAmount);
 		// TODO maybe no need to check.
 		require(
@@ -440,50 +440,50 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	 */
 
 	function getBorrowedAmount(address user) external view returns (uint256) {
-		return getiUSTPAmountByShares(borrowedShares[user]);
+		return getnUSTPAmountByShares(borrowedShares[user]);
 	}
 
 	/**
-	 * @dev mint iUSTP for _receiver.
+	 * @dev mint nUSTP for _receiver.
 	 * Emits`Mint` and `Transfer` event.
 	 *
-	 * @param _receiver the address be used to receive iUSTP.
-	 * @param _amount the amount of iUSTP.
+	 * @param _receiver the address be used to receive nUSTP.
+	 * @param _amount the amount of nUSTP.
 	 */
-	function _mintiUSTP(address _receiver, uint256 _amount) internal {
-		uint256 sharesAmount = getSharesByiUSTPAmount(_amount);
+	function _mintnUSTP(address _receiver, uint256 _amount) internal {
+		uint256 sharesAmount = getSharesBynUSTPAmount(_amount);
 		if (sharesAmount == 0) {
-			//iUSTP shares are 1:1 to USDC at first.
+			//nUSTP shares are 1:1 to USDC at first.
 			sharesAmount = _amount;
 		}
 		_mintShares(_receiver, sharesAmount);
-		totalSupplyiUSTP += _amount;
+		totalSupplynUSTP += _amount;
 		emit Mint(msg.sender, _amount, block.timestamp);
 		emit Transfer(address(0), _receiver, _amount);
 	}
 
 	/**
-	 * @dev burn iUSTP from _receiver.
+	 * @dev burn nUSTP from _receiver.
 	 * Emits`Burn` and `Transfer` event.
 	 *
-	 * @param _account the address be used to burn iUSTP.
-	 * @param _amount the amount of iUSTP.
+	 * @param _account the address be used to burn nUSTP.
+	 * @param _amount the amount of nUSTP.
 	 */
-	function _burniUSTP(address _account, uint256 _amount) internal {
-		uint256 sharesAmount = getSharesByiUSTPAmount(_amount);
+	function _burnnUSTP(address _account, uint256 _amount) internal {
+		uint256 sharesAmount = getSharesBynUSTPAmount(_amount);
 		require(sharesAmount > 0, "shares should be more then 0.");
 		_burnShares(_account, sharesAmount);
-		totalSupplyiUSTP -= _amount;
+		totalSupplynUSTP -= _amount;
 		emit Burn(msg.sender, _amount, block.timestamp);
 		emit Transfer(_account, address(0), _amount);
 	}
 
 	/**
-	 * @dev repay iUSTP for _account
+	 * @dev repay nUSTP for _account
 	 * Emits`Burn` and `Transfer` event.
 	 *
-	 * @param _account the address be usde to burn iUSTP.
-	 * @param _repayShares the amount of iUSTP shares.
+	 * @param _account the address be usde to burn nUSTP.
+	 * @param _repayShares the amount of nUSTP shares.
 	 */
 	function _repay(address _account, uint256 _repayShares) internal {
 		borrowedShares[_account] -= _repayShares;
@@ -491,10 +491,10 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	}
 
 	/**
-	 * @notice total supply of iUSTP.
+	 * @notice total supply of nUSTP.
 	 */
-	function _getTotalSupplyiUSTP() internal view override returns (uint256) {
-		return totalSupplyiUSTP;
+	function _getTotalSupplynUSTP() internal view override returns (uint256) {
+		return totalSupplynUSTP;
 	}
 
 	/**
@@ -510,7 +510,7 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	 * @dev The USD value of the collateral asset must be higher than safeCollateralRate.
 	 */
 	function _requireIsSafeCollateralRate(address user) internal view {
-		uint256 borrowedAmount = getiUSTPAmountByShares(borrowedShares[user]);
+		uint256 borrowedAmount = getnUSTPAmountByShares(borrowedShares[user]);
 		if (borrowedAmount == 0) {
 			return;
 		}
@@ -525,15 +525,15 @@ contract iUSTPool is iUSTP, AccessControl, Pausable {
 	 * @dev revolutions per second
 	 */
 	function getRPS() public view returns (uint256) {
-		uint256 _totalSupplyiUSTP = _getTotalSupplyiUSTP();
+		uint256 _totalSupplynUSTP = _getTotalSupplynUSTP();
 		uint256 supplyInterestRate = interestRateModel.getSupplyInterestRate(
-			_totalSupplyiUSTP,
-			getiUSTPAmountByShares(totalBorrowShares)
+			_totalSupplynUSTP,
+			getnUSTPAmountByShares(totalBorrowShares)
 		);
 		require(
 			supplyInterestRate <= maxInterestRate,
 			"interest rate should be less than maxInterestRate."
 		);
-		return supplyInterestRate.mul(_totalSupplyiUSTP).div(365 days).div(APR_COEFFICIENT);
+		return supplyInterestRate.mul(_totalSupplynUSTP).div(365 days).div(APR_COEFFICIENT);
 	}
 }
