@@ -1,13 +1,17 @@
-# Sample Hardhat Project
+# Interest-bearing ERC20-like token for TProtocol.
+-------------
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, and a script that deploys that contract.
+## Designed with three tokens
 
-Try running some of the following tasks:
+* nUSTP
+    > Main logic contract, it's a collateral lending pool.
+    
+    > It's a rebasing token.
+* iUSTP
+    > A non-rebasing ustp, warp from nUSTP.
+    
+    > The token price will increase with interest.
+* USTP
+    > A non-rebasing ustp and peg 1$, deposit from nUSTP.
 
-```shell
-npx hardhat help
-npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.js
-```
+    > Using in Dex.
