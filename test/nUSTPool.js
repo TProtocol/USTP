@@ -30,7 +30,7 @@ describe("nUSTPool", function () {
 	let daiToken, usdcToken, usdtToken, stbtToken
 	let stbtSwapPool
 	let priceFeed, interestRateModel
-	let iustpool, liquidatePool
+	let nustpool, liquidatePool
 	let now
 	let tokens
 
@@ -58,11 +58,11 @@ describe("nUSTPool", function () {
 			stbtToken
 		))
 		;({ priceFeed } = await deployMockPriceFeedFixture(deployer))
-		;({ iustpool } = await deploynUSTPoolFixture(admin, deployer, stbtToken, usdcToken))
+		;({ nustpool } = await deploynUSTPoolFixture(admin, deployer, stbtToken, usdcToken))
 		;({ liquidatePool } = await deployLiquidatePoolFixture(
 			admin,
 			deployer,
-			iustpool,
+			nustpool,
 			mxpRedeemPool,
 			stbtToken,
 			usdcToken,
@@ -73,12 +73,12 @@ describe("nUSTPool", function () {
 
 		await liquidatePool.connect(admin).setCurvePool(stbtSwapPool.address)
 		await liquidatePool.connect(admin).setRedeemPool(mxpRedeemPool.address)
-		await iustpool.connect(admin).initLiquidatePool(liquidatePool.address)
-		await iustpool.connect(admin).setInterestRateModel(interestRateModel.address)
+		await nustpool.connect(admin).initLiquidatePool(liquidatePool.address)
+		await nustpool.connect(admin).setInterestRateModel(interestRateModel.address)
 
 		await stbtToken.connect(deployer).setPermission(mxpRedeemPool.address, permission)
 		await stbtToken.connect(deployer).setPermission(liquidatePool.address, permission)
-		await stbtToken.connect(deployer).setPermission(iustpool.address, permission)
+		await stbtToken.connect(deployer).setPermission(nustpool.address, permission)
 
 		await liquidatePool.connect(admin).setFeeCollector(feeCollector.address)
 
@@ -92,34 +92,34 @@ describe("nUSTPool", function () {
 	describe("Supply", function () {
 		describe("Supply USDC", function () {
 			it("Should be able to supply", async function () {
-				await usdcToken.connect(usdcInvestor).approve(iustpool.address, amountToSupplyUSDC)
-				await iustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
-				expect(await iustpool.balanceOf(usdcInvestor.address)).to.be.equal(
+				await usdcToken.connect(usdcInvestor).approve(nustpool.address, amountToSupplyUSDC)
+				await nustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
+				expect(await nustpool.balanceOf(usdcInvestor.address)).to.be.equal(
 					ethers.utils.parseUnits("100", 18)
 				)
 			})
 
 			it("Should fail if supply zero USDC", async function () {
-				await expect(iustpool.connect(usdcInvestor).supplyUSDC(0)).to.be.revertedWith(
+				await expect(nustpool.connect(usdcInvestor).supplyUSDC(0)).to.be.revertedWith(
 					"Supply USDC should more then 0."
 				)
 			})
 		})
 		describe("Supply STBT", function () {
 			it("Should be able to supply", async function () {
-				await stbtToken.connect(stbtInvestor).approve(iustpool.address, amountToSupplySTBT)
+				await stbtToken.connect(stbtInvestor).approve(nustpool.address, amountToSupplySTBT)
 
 				const supplySTBTshares = await stbtToken.getSharesByAmount(amountToSupplySTBT)
 
-				await iustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT)
+				await nustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT)
 
-				expect(await iustpool.depositedSharesSTBT(stbtInvestor.address)).to.be.equal(
+				expect(await nustpool.depositedSharesSTBT(stbtInvestor.address)).to.be.equal(
 					supplySTBTshares
 				)
 			})
 
 			it("Should fail if supply zero STBT", async function () {
-				await expect(iustpool.connect(stbtInvestor).supplySTBT(0)).to.be.revertedWith(
+				await expect(nustpool.connect(stbtInvestor).supplySTBT(0)).to.be.revertedWith(
 					"Supply STBT should more then 0."
 				)
 			})
@@ -130,55 +130,55 @@ describe("nUSTPool", function () {
 		beforeEach(async () => {
 			now = now + ONE_HOUR
 			await mineBlockWithTimestamp(ethers.provider, now)
-			await usdcToken.connect(usdcInvestor).approve(iustpool.address, amountToSupplyUSDC)
-			await iustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
-			await stbtToken.connect(stbtInvestor).approve(iustpool.address, amountToSupplySTBT)
-			await iustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT)
+			await usdcToken.connect(usdcInvestor).approve(nustpool.address, amountToSupplyUSDC)
+			await nustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
+			await stbtToken.connect(stbtInvestor).approve(nustpool.address, amountToSupplySTBT)
+			await nustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT)
 		})
 		describe("Withdraw USDC", function () {
 			it("Should be able to withdraw", async function () {
 				const usdcAmountBefore = await usdcToken.balanceOf(usdcInvestor.address)
 
-				const iustpAmount = await iustpool.balanceOf(usdcInvestor.address)
-				await iustpool.connect(usdcInvestor).withdrawUSDC(amountToSupplyUSDC)
+				const nustpAmount = await nustpool.balanceOf(usdcInvestor.address)
+				await nustpool.connect(usdcInvestor).withdrawUSDC(amountToSupplyUSDC)
 
 				const usdcAmountAfter = await usdcToken.balanceOf(usdcInvestor.address)
 
-				expect(await iustpool.balanceOf(usdcInvestor.address)).to.be.equal(0)
-				expect(usdcAmountAfter).to.be.equal(iustpAmount.div(1e12).add(usdcAmountBefore))
+				expect(await nustpool.balanceOf(usdcInvestor.address)).to.be.equal(0)
+				expect(usdcAmountAfter).to.be.equal(nustpAmount.div(1e12).add(usdcAmountBefore))
 			})
 
 			it("Should fail if withdraw zero USDC", async function () {
-				await expect(iustpool.connect(usdcInvestor).withdrawUSDC(0)).to.be.revertedWith(
+				await expect(nustpool.connect(usdcInvestor).withdrawUSDC(0)).to.be.revertedWith(
 					"Withdraw USDC should more then 0."
 				)
 			})
 
 			it("Should fail if withdraw more than supply", async function () {
 				await expect(
-					iustpool.connect(usdcInvestor).withdrawUSDC(amountToSupplyUSDC + 1)
+					nustpool.connect(usdcInvestor).withdrawUSDC(amountToSupplyUSDC + 1)
 				).to.be.revertedWith("BALANCE_EXCEEDED")
 			})
 		})
 		describe("Withdraw STBT", function () {
 			it("Should be able to withdraw", async function () {
 				const stbtAmountBefore = await stbtToken.balanceOf(stbtInvestor.address)
-				await iustpool.connect(stbtInvestor).withdrawSTBT(amountToSupplySTBT)
+				await nustpool.connect(stbtInvestor).withdrawSTBT(amountToSupplySTBT)
 
 				const stbtAmountAfter = await stbtToken.balanceOf(stbtInvestor.address)
 
-				expect(await iustpool.depositedSharesSTBT(stbtInvestor.address)).to.be.equal(0)
+				expect(await nustpool.depositedSharesSTBT(stbtInvestor.address)).to.be.equal(0)
 				expect(stbtAmountAfter).to.be.equal(amountToSupplySTBT.add(stbtAmountBefore))
 			})
 
 			it("Should fail if supply zero STBT", async function () {
-				await expect(iustpool.connect(stbtInvestor).withdrawSTBT(0)).to.be.revertedWith(
+				await expect(nustpool.connect(stbtInvestor).withdrawSTBT(0)).to.be.revertedWith(
 					"Withdraw STBT should more then 0."
 				)
 			})
 
 			it("Should fail if withdraw more than supply", async function () {
-				await expect(iustpool.connect(stbtInvestor).withdrawSTBT(amountToSupplySTBT + 1)).to
+				await expect(nustpool.connect(stbtInvestor).withdrawSTBT(amountToSupplySTBT + 1)).to
 					.be.reverted
 			})
 		})
@@ -187,26 +187,26 @@ describe("nUSTPool", function () {
 		beforeEach(async () => {
 			now = now + ONE_HOUR
 			await mineBlockWithTimestamp(ethers.provider, now)
-			await usdcToken.connect(usdcInvestor).approve(iustpool.address, amountToSupplyUSDC)
-			await iustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
-			await stbtToken.connect(stbtInvestor).approve(iustpool.address, amountToSupplySTBT)
-			await iustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT)
+			await usdcToken.connect(usdcInvestor).approve(nustpool.address, amountToSupplyUSDC)
+			await nustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
+			await stbtToken.connect(stbtInvestor).approve(nustpool.address, amountToSupplySTBT)
+			await nustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT)
 		})
 		describe("Borrow USDC", function () {
 			it("Should be able to borrow", async function () {
 				const usdcAmountBefore = await usdcToken.balanceOf(stbtInvestor.address)
 
-				const borrowShares = await iustpool.getSharesBynUSTPAmount(
+				const borrowShares = await nustpool.getSharesBynUSTPAmount(
 					amountToBorrowUSDC.mul(1e12)
 				)
-				await iustpool.connect(stbtInvestor).borrowUSDC(amountToBorrowUSDC)
+				await nustpool.connect(stbtInvestor).borrowUSDC(amountToBorrowUSDC)
 
 				const usdcAmountAfter = await usdcToken.balanceOf(stbtInvestor.address)
 
-				expect(await iustpool.getBorrowedSharesOf(stbtInvestor.address)).to.be.equal(
+				expect(await nustpool.getBorrowedSharesOf(stbtInvestor.address)).to.be.equal(
 					borrowShares
 				)
-				expect(await iustpool.totalBorrowShares()).to.be.equal(borrowShares)
+				expect(await nustpool.totalBorrowShares()).to.be.equal(borrowShares)
 				expect(usdcAmountAfter).to.be.equal(amountToBorrowUSDC.add(usdcAmountBefore))
 			})
 
@@ -214,32 +214,32 @@ describe("nUSTPool", function () {
 				const usdcAmountBefore = await usdcToken.balanceOf(stbtInvestor.address)
 
 				const doubleBorrow = amountToBorrowUSDC.mul(2)
-				await usdcToken.connect(usdcInvestor).approve(iustpool.address, amountToSupplyUSDC)
-				await iustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
+				await usdcToken.connect(usdcInvestor).approve(nustpool.address, amountToSupplyUSDC)
+				await nustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
 				const totalSupplySTBT = await stbtToken.totalSupply()
 				await stbtToken.connect(deployer).distributeInterests(totalSupplySTBT, now, now + 1)
 
-				const borrowShares = await iustpool.getSharesBynUSTPAmount(doubleBorrow.mul(1e12))
-				await iustpool.connect(stbtInvestor).borrowUSDC(doubleBorrow)
+				const borrowShares = await nustpool.getSharesBynUSTPAmount(doubleBorrow.mul(1e12))
+				await nustpool.connect(stbtInvestor).borrowUSDC(doubleBorrow)
 
 				const usdcAmountAfter = await usdcToken.balanceOf(stbtInvestor.address)
 
-				expect(await iustpool.getBorrowedSharesOf(stbtInvestor.address)).to.be.equal(
+				expect(await nustpool.getBorrowedSharesOf(stbtInvestor.address)).to.be.equal(
 					borrowShares
 				)
-				expect(await iustpool.totalBorrowShares()).to.be.equal(borrowShares)
+				expect(await nustpool.totalBorrowShares()).to.be.equal(borrowShares)
 				expect(usdcAmountAfter).to.be.equal(doubleBorrow.add(usdcAmountBefore))
 			})
 
 			it("Should fail if borrow zero USDC", async function () {
-				await expect(iustpool.connect(stbtInvestor).borrowUSDC(0)).to.be.revertedWith(
+				await expect(nustpool.connect(stbtInvestor).borrowUSDC(0)).to.be.revertedWith(
 					"Borrow USDC should more then 0."
 				)
 			})
 
 			it("Should fail if borrow more than collateral", async function () {
 				await expect(
-					iustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
+					nustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
 				).to.be.revertedWith("Cannot be lower than the safeCollateralRate.")
 			})
 		})
@@ -251,57 +251,57 @@ describe("nUSTPool", function () {
 			await mineBlockWithTimestamp(ethers.provider, now)
 			await interestRateModel.connect(deployer).setAPR(0)
 			// to realize interest
-			await iustpool.connect(admin).setReserveFactor(0)
-			await usdcToken.connect(usdcInvestor).approve(iustpool.address, amountToSupplyUSDC)
-			await iustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
-			await stbtToken.connect(stbtInvestor).approve(iustpool.address, amountToSupplySTBT)
-			await iustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT)
+			await nustpool.connect(admin).setReserveFactor(0)
+			await usdcToken.connect(usdcInvestor).approve(nustpool.address, amountToSupplyUSDC)
+			await nustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
+			await stbtToken.connect(stbtInvestor).approve(nustpool.address, amountToSupplySTBT)
+			await nustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT)
 
-			await iustpool.connect(stbtInvestor).borrowUSDC(amountToBorrowUSDC)
-			await usdcToken.connect(stbtInvestor).approve(iustpool.address, BIGNUMBER)
+			await nustpool.connect(stbtInvestor).borrowUSDC(amountToBorrowUSDC)
+			await usdcToken.connect(stbtInvestor).approve(nustpool.address, BIGNUMBER)
 		})
 		describe("Repay USDC", function () {
 			it("Should be able to repay 50%", async function () {
 				const usdcAmountBefore = await usdcToken.balanceOf(stbtInvestor.address)
 
-				const borrowSharesBefore = await iustpool.getBorrowedSharesOf(stbtInvestor.address)
-				const borrowiUSDP = (await iustpool.getBorrowedAmount(stbtInvestor.address)).div(2)
+				const borrowSharesBefore = await nustpool.getBorrowedSharesOf(stbtInvestor.address)
+				const borrowiUSDP = (await nustpool.getBorrowedAmount(stbtInvestor.address)).div(2)
 
 				const borrowUSDC = borrowiUSDP.div(1e12)
 
-				const repayShares = await iustpool.getSharesBynUSTPAmount(borrowiUSDP)
+				const repayShares = await nustpool.getSharesBynUSTPAmount(borrowiUSDP)
 
-				await iustpool.connect(stbtInvestor).repayUSDC(borrowUSDC)
+				await nustpool.connect(stbtInvestor).repayUSDC(borrowUSDC)
 
 				const usdcAmountAfter = await usdcToken.balanceOf(stbtInvestor.address)
-				const borrowSharesAfter = await iustpool.getBorrowedSharesOf(stbtInvestor.address)
+				const borrowSharesAfter = await nustpool.getBorrowedSharesOf(stbtInvestor.address)
 
 				expect(borrowSharesAfter).to.be.equal(borrowSharesBefore.sub(repayShares))
-				expect(await iustpool.totalBorrowShares()).to.be.equal(borrowSharesAfter)
+				expect(await nustpool.totalBorrowShares()).to.be.equal(borrowSharesAfter)
 				expect(usdcAmountBefore).to.be.equal(usdcAmountAfter.add(borrowUSDC))
 			})
 			it("Should be able to repay 100%", async function () {
 				const usdcAmountBefore = await usdcToken.balanceOf(stbtInvestor.address)
 
-				const borrowSharesBefore = await iustpool.getBorrowedSharesOf(stbtInvestor.address)
-				const borrowiUSDP = await iustpool.getBorrowedAmount(stbtInvestor.address)
+				const borrowSharesBefore = await nustpool.getBorrowedSharesOf(stbtInvestor.address)
+				const borrowiUSDP = await nustpool.getBorrowedAmount(stbtInvestor.address)
 
 				const borrowUSDC = borrowiUSDP.div(1e12)
 
-				const repayShares = await iustpool.getSharesBynUSTPAmount(borrowiUSDP)
+				const repayShares = await nustpool.getSharesBynUSTPAmount(borrowiUSDP)
 
-				await iustpool.connect(stbtInvestor).repayUSDC(borrowUSDC)
+				await nustpool.connect(stbtInvestor).repayUSDC(borrowUSDC)
 
 				const usdcAmountAfter = await usdcToken.balanceOf(stbtInvestor.address)
-				const borrowSharesAfter = await iustpool.getBorrowedSharesOf(stbtInvestor.address)
+				const borrowSharesAfter = await nustpool.getBorrowedSharesOf(stbtInvestor.address)
 
 				expect(borrowSharesAfter).to.be.equal(borrowSharesBefore.sub(repayShares))
-				expect(await iustpool.totalBorrowShares()).to.be.equal(borrowSharesAfter)
+				expect(await nustpool.totalBorrowShares()).to.be.equal(borrowSharesAfter)
 				expect(usdcAmountBefore).to.be.equal(usdcAmountAfter.add(borrowUSDC))
 			})
 
 			it("Should fail if repay zero USDC", async function () {
-				await expect(iustpool.connect(stbtInvestor).repayUSDC(0)).to.be.revertedWith(
+				await expect(nustpool.connect(stbtInvestor).repayUSDC(0)).to.be.revertedWith(
 					"Repay USDC should more then 0."
 				)
 			})
@@ -312,44 +312,44 @@ describe("nUSTPool", function () {
 		beforeEach(async () => {
 			now = now + ONE_HOUR
 			await mineBlockWithTimestamp(ethers.provider, now)
-			await usdcToken.connect(usdcInvestor).approve(iustpool.address, amountToSupplyUSDC)
-			await iustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
+			await usdcToken.connect(usdcInvestor).approve(nustpool.address, amountToSupplyUSDC)
+			await nustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
 			await stbtToken
 				.connect(stbtInvestor)
-				.approve(iustpool.address, amountToSupplySTBT.mul(2))
-			await iustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT.mul(2))
+				.approve(nustpool.address, amountToSupplySTBT.mul(2))
+			await nustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT.mul(2))
 		})
 		describe("Gain interest", function () {
 			it("Should be able to full interest when 100% utilization rate", async function () {
 				// borrow all usdc
-				await iustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
+				await nustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
 				now = now + ONE_YEAR
 				await mineBlockWithTimestamp(ethers.provider, now)
 
 				// to realize interest
-				await iustpool.connect(admin).setReserveFactor(0)
+				await nustpool.connect(admin).setReserveFactor(0)
 
-				const iustpAmount = await iustpool.balanceOf(usdcInvestor.address)
+				const nustpAmount = await nustpool.balanceOf(usdcInvestor.address)
 
 				// ~= 4.2% apr
-				expect(iustpAmount.div(1e12)).to.be.within(
+				expect(nustpAmount.div(1e12)).to.be.within(
 					amountToSupplyUSDC.mul(10410).div(10000),
 					amountToSupplyUSDC.mul(10430).div(10000)
 				)
 			})
 			it("Should be able to half interest when 50% utilization rate", async function () {
 				// borrow all usdc
-				await iustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC.div(2))
+				await nustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC.div(2))
 				now = now + ONE_YEAR
 				await mineBlockWithTimestamp(ethers.provider, now)
 
 				// to realize interest
-				await iustpool.connect(admin).setReserveFactor(0)
+				await nustpool.connect(admin).setReserveFactor(0)
 
-				const iustpAmount = await iustpool.balanceOf(usdcInvestor.address)
+				const nustpAmount = await nustpool.balanceOf(usdcInvestor.address)
 
 				// ~= 2.1% apr
-				expect(iustpAmount.div(1e12)).to.be.within(
+				expect(nustpAmount.div(1e12)).to.be.within(
 					amountToSupplyUSDC.mul(10205).div(10000),
 					amountToSupplyUSDC.mul(10215).div(10000)
 				)
@@ -357,26 +357,26 @@ describe("nUSTPool", function () {
 
 			it("Should be able to withdraw interest income", async function () {
 				// borrow all usdc
-				await iustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
+				await nustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
 				now = now + ONE_YEAR
 				await mineBlockWithTimestamp(ethers.provider, now)
 
 				// to realize interest
-				await iustpool.connect(admin).setReserveFactor(0)
+				await nustpool.connect(admin).setReserveFactor(0)
 
 				await usdcToken
 					.connect(stbtInvestor)
-					.approve(iustpool.address, amountToSupplyUSDC.mul(2))
-				await iustpool.connect(stbtInvestor).supplyUSDC(amountToSupplyUSDC.mul(2))
+					.approve(nustpool.address, amountToSupplyUSDC.mul(2))
+				await nustpool.connect(stbtInvestor).supplyUSDC(amountToSupplyUSDC.mul(2))
 
 				const usdcAmountBefore = await usdcToken.balanceOf(usdcInvestor.address)
 
-				const iustpAmount = await iustpool.balanceOf(usdcInvestor.address)
-				await iustpool.connect(usdcInvestor).withdrawUSDC(iustpAmount.div(1e12))
+				const nustpAmount = await nustpool.balanceOf(usdcInvestor.address)
+				await nustpool.connect(usdcInvestor).withdrawUSDC(nustpAmount.div(1e12))
 
 				const usdcAmountAfter = await usdcToken.balanceOf(usdcInvestor.address)
 
-				expect(usdcAmountAfter).to.be.equal(iustpAmount.div(1e12).add(usdcAmountBefore))
+				expect(usdcAmountAfter).to.be.equal(nustpAmount.div(1e12).add(usdcAmountBefore))
 			})
 		})
 	})
@@ -387,22 +387,22 @@ describe("nUSTPool", function () {
 			await mineBlockWithTimestamp(ethers.provider, now)
 			await usdcToken
 				.connect(usdcInvestor)
-				.approve(iustpool.address, amountToSupplyUSDC.mul(10))
-			await iustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC.mul(10))
+				.approve(nustpool.address, amountToSupplyUSDC.mul(10))
+			await nustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC.mul(10))
 			await stbtToken
 				.connect(stbtInvestor)
-				.approve(iustpool.address, amountToSupplySTBT.mul(2))
-			await iustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT.mul(2))
-			await iustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
+				.approve(nustpool.address, amountToSupplySTBT.mul(2))
+			await nustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT.mul(2))
+			await nustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
 		})
 
 		it(`Should be able to liquidate for with zero fee`, async () => {
 			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
-			const beforeUSDPAmount = await iustpool.balanceOf(usdcInvestor.address)
-			await iustpool
+			const beforeUSDPAmount = await nustpool.balanceOf(usdcInvestor.address)
+			await nustpool
 				.connect(usdcInvestor)
 				.liquidateBorrow(stbtInvestor.address, liquidateSTBT)
-			const afterUSDPAmount = await iustpool.balanceOf(usdcInvestor.address)
+			const afterUSDPAmount = await nustpool.balanceOf(usdcInvestor.address)
 			// There are some err in interest.
 			expect(beforeUSDPAmount.sub(afterUSDPAmount)).to.be.within(
 				liquidateSTBT.mul(99999).div(100000),
@@ -421,11 +421,11 @@ describe("nUSTPool", function () {
 			await liquidatePool.connect(admin).setLiquidateFeeRate(1000000)
 
 			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
-			const beforeUSDPAmount = await iustpool.balanceOf(usdcInvestor.address)
-			await iustpool
+			const beforeUSDPAmount = await nustpool.balanceOf(usdcInvestor.address)
+			await nustpool
 				.connect(usdcInvestor)
 				.liquidateBorrow(stbtInvestor.address, liquidateSTBT)
-			const afterUSDPAmount = await iustpool.balanceOf(usdcInvestor.address)
+			const afterUSDPAmount = await nustpool.balanceOf(usdcInvestor.address)
 			// There are some err in interest.
 			expect(beforeUSDPAmount.sub(afterUSDPAmount)).to.be.within(
 				liquidateSTBT.mul(99999).div(100000),
@@ -446,7 +446,7 @@ describe("nUSTPool", function () {
 
 		it(`Should be able to finalizeLiquidationById for twice`, async () => {
 			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
-			await iustpool
+			await nustpool
 				.connect(usdcInvestor)
 				.liquidateBorrow(stbtInvestor.address, liquidateSTBT)
 			const liquidationIndex = await liquidatePool.liquidationIndex()
@@ -459,7 +459,7 @@ describe("nUSTPool", function () {
 
 		it(`Should be able to finalizeLiquidationById from others`, async () => {
 			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
-			await iustpool
+			await nustpool
 				.connect(usdcInvestor)
 				.liquidateBorrow(stbtInvestor.address, liquidateSTBT)
 			const liquidationIndex = await liquidatePool.liquidationIndex()
@@ -472,7 +472,7 @@ describe("nUSTPool", function () {
 		it(`Should be able to finalizeLiquidationById when the proccess not done yet.`, async () => {
 			await liquidatePool.connect(admin).setProcessPeriod(ONE_MONTH)
 			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
-			await iustpool
+			await nustpool
 				.connect(usdcInvestor)
 				.liquidateBorrow(stbtInvestor.address, liquidateSTBT)
 			const liquidationIndex = await liquidatePool.liquidationIndex()
@@ -483,18 +483,18 @@ describe("nUSTPool", function () {
 		})
 
 		it("Should be not able to more than user owns.", async () => {
-			const liquidateSTBT = await iustpool.balanceOf(admin.address)
+			const liquidateSTBT = await nustpool.balanceOf(admin.address)
 			await expect(
-				iustpool
+				nustpool
 					.connect(admin)
 					.liquidateBorrow(stbtInvestor.address, liquidateSTBT.add(100))
 			).to.be.revertedWith("BALANCE_EXCEEDED")
 		})
 
 		it("Should be not able to liquidate self", async () => {
-			const liquidateSTBT = await iustpool.balanceOf(stbtInvestor.address)
+			const liquidateSTBT = await nustpool.balanceOf(stbtInvestor.address)
 			await expect(
-				iustpool
+				nustpool
 					.connect(stbtInvestor)
 					.liquidateBorrow(stbtInvestor.address, liquidateSTBT.add(100))
 			).to.be.revertedWith("don't liquidate self")
@@ -502,10 +502,10 @@ describe("nUSTPool", function () {
 
 		it("Should be not able to more than borrower's debt.", async () => {
 			// to realize interest
-			await iustpool.connect(admin).setReserveFactor(0)
-			const liquidateSTBT = await iustpool.getBorrowedAmount(stbtInvestor.address)
+			await nustpool.connect(admin).setReserveFactor(0)
+			const liquidateSTBT = await nustpool.getBorrowedAmount(stbtInvestor.address)
 			await expect(
-				iustpool
+				nustpool
 					.connect(usdcInvestor)
 					.liquidateBorrow(stbtInvestor.address, liquidateSTBT.mul(2))
 			).to.be.revertedWith("repayAmount should be less than borrower's debt.")
@@ -532,34 +532,34 @@ describe("nUSTPool", function () {
 			await mineBlockWithTimestamp(ethers.provider, now)
 			await usdcToken
 				.connect(usdcInvestor)
-				.approve(iustpool.address, amountToSupplyUSDC.mul(10))
-			await iustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC.mul(10))
+				.approve(nustpool.address, amountToSupplyUSDC.mul(10))
+			await nustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC.mul(10))
 			await stbtToken
 				.connect(stbtInvestor)
-				.approve(iustpool.address, amountToSupplySTBT.mul(2))
-			await iustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT.mul(2))
-			await iustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
+				.approve(nustpool.address, amountToSupplySTBT.mul(2))
+			await nustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT.mul(2))
+			await nustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
 
-			await iustpool.connect(stbtInvestor).applyFlashLiquidateProvider()
-			await iustpool.connect(admin).acceptFlashLiquidateProvider(stbtInvestor.address)
+			await nustpool.connect(stbtInvestor).applyFlashLiquidateProvider()
+			await nustpool.connect(admin).acceptFlashLiquidateProvider(stbtInvestor.address)
 		})
 
 		testList.forEach(({ tokenName, tokenIndex }, i) => {
 			it(`Should be able to flash liquidate for ${tokenName} with zero fee`, async () => {
 				const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
 
-				const beforeUSDPAmount = await iustpool.balanceOf(usdcInvestor.address)
+				const beforeUSDPAmount = await nustpool.balanceOf(usdcInvestor.address)
 				const liquidateOut = await liquidatePool.getFlashLiquidateAmountOutFromCurve(
 					liquidateSTBT,
 					tokenIndex
 				)
 
 				const beforeBalance = await tokens[i].balanceOf(usdcInvestor.address)
-				await iustpool
+				await nustpool
 					.connect(usdcInvestor)
 					.flashLiquidateBorrow(stbtInvestor.address, liquidateSTBT, tokenIndex, 0)
 				const afterBalance = await tokens[i].balanceOf(usdcInvestor.address)
-				const afterUSDPAmount = await iustpool.balanceOf(usdcInvestor.address)
+				const afterUSDPAmount = await nustpool.balanceOf(usdcInvestor.address)
 				expect(afterBalance.sub(beforeBalance)).to.be.equal(liquidateOut)
 				// There are some err in interest.
 				expect(beforeUSDPAmount.sub(afterUSDPAmount)).to.be.within(
@@ -572,7 +572,7 @@ describe("nUSTPool", function () {
 				await liquidatePool.connect(admin).setLiquidateFeeRate(1000000)
 				const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
 
-				const beforeUSDPAmount = await iustpool.balanceOf(usdcInvestor.address)
+				const beforeUSDPAmount = await nustpool.balanceOf(usdcInvestor.address)
 
 				const liquidateOut = await liquidatePool.getFlashLiquidateAmountOutFromCurve(
 					liquidateSTBT,
@@ -582,7 +582,7 @@ describe("nUSTPool", function () {
 				const amountAfterFee = liquidateOut.sub(fee)
 
 				const beforeBalance = await tokens[i].balanceOf(usdcInvestor.address)
-				await iustpool
+				await nustpool
 					.connect(usdcInvestor)
 					.flashLiquidateBorrow(stbtInvestor.address, liquidateSTBT, tokenIndex, 0)
 				const afterBalance = await tokens[i].balanceOf(usdcInvestor.address)
@@ -590,7 +590,7 @@ describe("nUSTPool", function () {
 
 				const feeCollectorBalance = await tokens[i].balanceOf(feeCollector.address)
 				expect(feeCollectorBalance).to.be.equal(fee)
-				const afterUSDPAmount = await iustpool.balanceOf(usdcInvestor.address)
+				const afterUSDPAmount = await nustpool.balanceOf(usdcInvestor.address)
 				// There are some err in interest.
 				expect(beforeUSDPAmount.sub(afterUSDPAmount)).to.be.within(
 					liquidateSTBT.mul(99999).div(100000),
@@ -600,18 +600,18 @@ describe("nUSTPool", function () {
 		})
 
 		it("Should be not able to more than user owns.", async () => {
-			const liquidateSTBT = await iustpool.balanceOf(admin.address)
+			const liquidateSTBT = await nustpool.balanceOf(admin.address)
 			await expect(
-				iustpool
+				nustpool
 					.connect(admin)
 					.flashLiquidateBorrow(stbtInvestor.address, liquidateSTBT.add(100), 1, 0)
 			).to.be.revertedWith("BALANCE_EXCEEDED")
 		})
 
 		it("Should be not able to liquidate self", async () => {
-			const liquidateSTBT = await iustpool.balanceOf(stbtInvestor.address)
+			const liquidateSTBT = await nustpool.balanceOf(stbtInvestor.address)
 			await expect(
-				iustpool
+				nustpool
 					.connect(stbtInvestor)
 					.flashLiquidateBorrow(stbtInvestor.address, liquidateSTBT.add(100), 1, 0)
 			).to.be.revertedWith("don't liquidate self.")
@@ -619,10 +619,10 @@ describe("nUSTPool", function () {
 
 		it("Should be not able to more than borrower's debt.", async () => {
 			// to realize interest
-			await iustpool.connect(admin).setReserveFactor(0)
-			const liquidateSTBT = await iustpool.getBorrowedAmount(stbtInvestor.address)
+			await nustpool.connect(admin).setReserveFactor(0)
+			const liquidateSTBT = await nustpool.getBorrowedAmount(stbtInvestor.address)
 			await expect(
-				iustpool
+				nustpool
 					.connect(usdcInvestor)
 					.flashLiquidateBorrow(stbtInvestor.address, liquidateSTBT.mul(2), 1, 0)
 			).to.be.revertedWith("repayAmount should be less than borrower's debt.")
