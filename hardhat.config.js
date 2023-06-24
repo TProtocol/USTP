@@ -2,6 +2,7 @@ require("@nomicfoundation/hardhat-toolbox")
 require("@openzeppelin/hardhat-upgrades")
 require("@nomiclabs/hardhat-vyper")
 require("@nomiclabs/hardhat-etherscan")
+require("hardhat-deploy")
 require("dotenv").config()
 
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY
@@ -50,6 +51,11 @@ module.exports = {
 			mainnet: ETHERSCAN_API_KEY,
 			goerli: ETHERSCAN_API_KEY,
 			sepolia: ETHERSCAN_API_KEY,
+		},
+	},
+	namedAccounts: {
+		deployer: {
+			default: 0,
 		},
 	},
 }
