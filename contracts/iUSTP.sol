@@ -55,7 +55,7 @@ contract iUSTP is ERC20, AccessControl {
 	function unwarpAll() external {
 		uint256 userBalance = balanceOf(msg.sender);
 		uint256 withdrawAmount = InUSTP(address(nUSTP)).getnUSTPAmountByShares(userBalance);
-		require(withdrawAmount > 0, "can't wrap zero TBT");
+		require(withdrawAmount > 0, "can't wrap zero iUSTP");
 		_burn(msg.sender, userBalance);
 
 		nUSTP.safeTransfer(msg.sender, withdrawAmount);
