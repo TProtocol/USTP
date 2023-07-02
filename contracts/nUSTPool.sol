@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "./interfaces/ISTBT.sol";
 import "./interfaces/IInterestRateModel.sol";
 import "./interfaces/ILiquidatePool.sol";
+import "./interfaces/IMigrator.sol";
 import "./nUSTP.sol";
 
 contract nUSTPool is nUSTP, AccessControl, Pausable {
@@ -28,6 +29,8 @@ contract nUSTPool is nUSTP, AccessControl, Pausable {
 
 	uint256 public safeCollateralRate = 101 * 1e18;
 	uint256 public reserveFactor;
+
+	bool public migrating;
 
 	// Used to record the user's STBT shares.
 	mapping(address => uint256) public depositedSharesSTBT;
@@ -49,6 +52,8 @@ contract nUSTPool is nUSTP, AccessControl, Pausable {
 	// interest rate model
 	IInterestRateModel public interestRateModel;
 	ILiquidatePool public liquidatePool;
+
+	IMigrator public migrator;
 
 	// the claimable fee for protocol
 	// reserves will be claim with nUSTP.
@@ -84,6 +89,7 @@ contract nUSTPool is nUSTP, AccessControl, Pausable {
 		_setupRole(DEFAULT_ADMIN_ROLE, admin);
 		stbt = _stbt;
 		usdc = _usdc;
+		migrating = true;
 	}
 
 	modifier realizeInterest() {
@@ -123,6 +129,25 @@ contract nUSTPool is nUSTP, AccessControl, Pausable {
 	) external onlyRole(DEFAULT_ADMIN_ROLE) realizeInterest {
 		require(address(liquidatePool) == address(0), "initialized.");
 		liquidatePool = ILiquidatePool(_address);
+	}
+
+	/**
+	 * @dev to set the migrator
+	 * @param _address the address of migrator
+	 */
+	function initMigrator(address _address) external onlyRole(DEFAULT_ADMIN_ROLE) {
+		require(address(migrator) == address(0), "initialized");
+		require(migrating, "migration has been done");
+		migrator = IMigrator(_address);
+	}
+
+	/**
+	 * @dev to revoke migrator
+	 */
+	function revokeMigrator() external onlyRole(DEFAULT_ADMIN_ROLE) {
+		require(migrating, "migration has been done");
+		migrator = IMigrator(address(0));
+		migrating = false;
 	}
 
 	/**
@@ -203,7 +228,26 @@ contract nUSTPool is nUSTP, AccessControl, Pausable {
 	 */
 	function supplySTBT(uint256 _amount) external whenNotPaused realizeInterest {
 		require(_amount > 0, "Supply STBT should more then 0.");
+		_supplySTBTFor(_amount, msg.sender);
+	}
 
+	/**
+	 * @notice Supply STBT for others.
+	 * Emits a `SupplySTBT` event.
+	 *
+	 * @param _amount the amount of STBT.
+	 * @param _receiver receiver
+	 */
+
+	function supplySTBTFor(
+		uint256 _amount,
+		address _receiver
+	) external whenNotPaused realizeInterest {
+		require(_amount > 0, "Supply STBT should more then 0.");
+		_supplySTBTFor(_amount, _receiver);
+	}
+
+	function _supplySTBTFor(uint256 _amount, address _receiver) internal {
 		uint256 beforeShares = stbt.sharesOf(address(this));
 		stbt.transferFrom(msg.sender, address(this), _amount);
 		uint256 afterShares = stbt.sharesOf(address(this));
@@ -211,9 +255,9 @@ contract nUSTPool is nUSTP, AccessControl, Pausable {
 		uint256 userDepositedShares = afterShares.sub(beforeShares);
 
 		totalDepositedSharesSTBT += userDepositedShares;
-		depositedSharesSTBT[msg.sender] += userDepositedShares;
+		depositedSharesSTBT[_receiver] += userDepositedShares;
 
-		emit SupplySTBT(msg.sender, _amount, userDepositedShares, block.timestamp);
+		emit SupplySTBT(_receiver, _amount, userDepositedShares, block.timestamp);
 	}
 
 	/**
@@ -421,6 +465,43 @@ contract nUSTPool is nUSTP, AccessControl, Pausable {
 		pendingFlashLiquidateProvider[user] = false;
 		flashLiquidateProvider[user] = true;
 		emit FlashLiquidateProvider(user, 2);
+	}
+
+	/**
+	 * @notice Migrate wTBT to nUSTP
+	 * @param _user the user of deposit USDC
+	 * @param _borrower the user of deposit STBT
+	 * @param _amount the amount of migration
+	 */
+	function migrate(
+		address _user,
+		address _borrower,
+		uint256 _amount
+	) external whenNotPaused realizeInterest {
+		require(migrating, "migration is done.");
+		require(msg.sender == address(migrator), "no authorization.");
+
+		// Mint USTP to user, 1-to-1 stbt
+		_mintnUSTP(_user, _amount);
+
+		// supply stbt
+		uint256 beforeShares = stbt.sharesOf(address(this));
+		stbt.transferFrom(_borrower, address(this), _amount);
+		uint256 afterShares = stbt.sharesOf(address(this));
+
+		uint256 userDepositedShares = afterShares.sub(beforeShares);
+
+		totalDepositedSharesSTBT += userDepositedShares;
+		depositedSharesSTBT[_borrower] += userDepositedShares;
+
+		// Borrow
+		// At migrate. we don't check healthy
+		// Deposit stbt for borrower later
+		uint256 borrowShares = getSharesBynUSTPAmount(_amount);
+		borrowedShares[_borrower] += borrowShares;
+		totalBorrowShares += borrowShares;
+
+		emit BorrowUSDC(msg.sender, _amount, borrowShares, block.timestamp);
 	}
 
 	/**
