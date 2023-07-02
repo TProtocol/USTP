@@ -6,6 +6,37 @@ const permission = {
 	expiryTime: 0,
 }
 
+async function deployMockwTBT(deployer) {
+	const MockwTBT = await ethers.getContractFactory("MockwTBT")
+	let wtbtToken = await MockwTBT.connect(deployer).deploy()
+	await wtbtToken.deployed()
+
+	return { wtbtToken }
+}
+
+async function deployMockTreasury(deployer, recovery) {
+	const MockTreasury = await ethers.getContractFactory("MockTreasury")
+	let mockTreasury = await MockTreasury.connect(deployer).deploy(recovery.address)
+	await mockTreasury.deployed()
+
+	return { mockTreasury }
+}
+
+async function deployMigrator(deployer, nustpool, wtbt, treasury, stbt, borrower) {
+	const Migrator = await ethers.getContractFactory("migrator")
+	let migrator = await Migrator.connect(deployer).deploy(
+		deployer.address,
+		nustpool.address,
+		wtbt.address,
+		treasury.address,
+		stbt.address,
+		borrower.address
+	)
+	await migrator.deployed()
+
+	return { migrator }
+}
+
 async function deployTokensFixture(deployer, investor, investor2) {
 	const ERC20Token = await ethers.getContractFactory("ERC20Token")
 	let daiToken = await ERC20Token.connect(deployer).deploy("DAI", "DAI", 18)
@@ -213,4 +244,7 @@ module.exports = {
 	deploySTBTTokensFixture,
 	deployiUSTPFixture,
 	deployUSTPFixture,
+	deployMockTreasury,
+	deployMockwTBT,
+	deployMigrator,
 }

@@ -52,6 +52,16 @@ const LiquidatePoolId = "LiquidatePool"
 const iUSTPId = "iUSTP"
 const USTPId = "USTP"
 
+const testnetId = {
+	dai: "DaiToken",
+	usdt: "UsdtToken",
+	usdc: "UsdcToken",
+	stbt: "StbtToken",
+	CrvToken: "3Crv",
+	CrvPool: "3CrvPool",
+	CrvStableSwap: "StableSwap",
+}
+
 module.exports = {
 	developmentChains,
 	AddressConfig,
@@ -60,4 +70,5 @@ module.exports = {
 	LiquidatePoolId,
 	iUSTPId,
 	USTPId,
+	testnetId,
 }
