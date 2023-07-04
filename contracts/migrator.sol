@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
-import "./interfaces/InUSTPool.sol";
+import "./interfaces/IrUSTPool.sol";
 import "./interfaces/IwTBTPoolV2Permission.sol";
 import "./interfaces/ITreasury.sol";
 
@@ -14,8 +14,8 @@ contract migrator {
 	using SafeMath for uint256;
 
 	address public admin;
-	// nustpool
-	address public nustpool;
+	// rustpool
+	address public rustpool;
 	address public wtbt;
 	address public treasury;
 	address public stbt;
@@ -23,21 +23,21 @@ contract migrator {
 
 	constructor(
 		address _admin,
-		address _nustpool,
+		address _rustpool,
 		address _wtbt,
 		address _treasury,
 		address _stbt,
 		address _borrower
 	) {
 		require(_admin != address(0), "!_admin");
-		require(_nustpool != address(0), "!_nustpool");
+		require(_rustpool != address(0), "!_rustpool");
 		require(_wtbt != address(0), "!_wtbt");
 		require(_treasury != address(0), "!_treasury");
 		require(_stbt != address(0), "!_stbt");
 		require(_borrower != address(0), "!_borrower");
 
 		admin = _admin;
-		nustpool = _nustpool;
+		rustpool = _rustpool;
 		wtbt = _wtbt;
 		treasury = _treasury;
 		stbt = _stbt;
@@ -55,7 +55,7 @@ contract migrator {
 		// convert to STBT amount
 		underlyAmount = underlyAmount.mul(1e12);
 		ITreasury(treasury).recoverERC20(stbt, underlyAmount);
-		InUSTPool(nustpool).migrate(msg.sender, borrower, underlyAmount);
+		IrUSTPool(rustpool).migrate(msg.sender, borrower, underlyAmount);
 	}
 
 	/**

@@ -22,11 +22,11 @@ async function deployMockTreasury(deployer, recovery) {
 	return { mockTreasury }
 }
 
-async function deployMigrator(deployer, nustpool, wtbt, treasury, stbt, borrower) {
+async function deployMigrator(deployer, rustpool, wtbt, treasury, stbt, borrower) {
 	const Migrator = await ethers.getContractFactory("migrator")
 	let migrator = await Migrator.connect(deployer).deploy(
 		deployer.address,
-		nustpool.address,
+		rustpool.address,
 		wtbt.address,
 		treasury.address,
 		stbt.address,
@@ -177,16 +177,16 @@ async function deployMockPriceFeedFixture(deployer) {
 	return { priceFeed }
 }
 
-async function deploynUSTPoolFixture(admin, deployer, stbt, usdc) {
-	const nUSTPool = await ethers.getContractFactory("nUSTPool")
-	let nustpool = await nUSTPool
+async function deployrUSTPoolFixture(admin, deployer, stbt, usdc) {
+	const rUSTPool = await ethers.getContractFactory("rUSTPool")
+	let rustpool = await rUSTPool
 		.connect(deployer)
 		.deploy(admin.address, stbt.address, usdc.address)
-	await nustpool.deployed()
+	await rustpool.deployed()
 	// SET ROLE
-	let POOL_MANAGER_ROLE = await nustpool.POOL_MANAGER_ROLE()
-	await nustpool.connect(admin).grantRole(POOL_MANAGER_ROLE, admin.address)
-	return { nustpool }
+	let POOL_MANAGER_ROLE = await rustpool.POOL_MANAGER_ROLE()
+	await rustpool.connect(admin).grantRole(POOL_MANAGER_ROLE, admin.address)
+	return { rustpool }
 }
 
 async function deployInterestRateModelFixture(deployer) {
@@ -199,7 +199,7 @@ async function deployInterestRateModelFixture(deployer) {
 async function deployLiquidatePoolFixture(
 	admin,
 	deployer,
-	nustpool,
+	rustpool,
 	mxpRedeemPool,
 	stbt,
 	usdc,
@@ -209,7 +209,7 @@ async function deployLiquidatePoolFixture(
 	const LiquidatePool = await ethers.getContractFactory("LiquidatePool")
 	let liquidatePool = await LiquidatePool.connect(deployer).deploy(
 		admin.address,
-		nustpool.address,
+		rustpool.address,
 		mxpRedeemPool.address,
 		stbt.address,
 		usdc.address,
@@ -220,16 +220,16 @@ async function deployLiquidatePoolFixture(
 	return { liquidatePool }
 }
 
-async function deployiUSTPFixture(admin, deployer, nUSTP) {
+async function deployiUSTPFixture(admin, deployer, rUSTP) {
 	const iUSTP = await ethers.getContractFactory("iUSTP")
-	let iUSTPtoken = await iUSTP.connect(deployer).deploy(admin.address, nUSTP.address)
+	let iUSTPtoken = await iUSTP.connect(deployer).deploy(admin.address, rUSTP.address)
 	await iUSTPtoken.deployed()
 	return { iUSTPtoken }
 }
 
-async function deployUSTPFixture(admin, deployer, nUSTP) {
+async function deployUSTPFixture(admin, deployer, rUSTP) {
 	const USTP = await ethers.getContractFactory("USTP")
-	let USTPtoken = await USTP.connect(deployer).deploy(admin.address, nUSTP.address)
+	let USTPtoken = await USTP.connect(deployer).deploy(admin.address, rUSTP.address)
 	await USTPtoken.deployed()
 	return { USTPtoken }
 }
@@ -238,7 +238,7 @@ module.exports = {
 	deployTokensFixture,
 	deployCurvePoolFixture,
 	deployMockPriceFeedFixture,
-	deploynUSTPoolFixture,
+	deployrUSTPoolFixture,
 	deployLiquidatePoolFixture,
 	deployInterestRateModelFixture,
 	deploySTBTTokensFixture,

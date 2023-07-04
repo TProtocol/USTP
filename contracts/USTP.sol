@@ -15,43 +15,43 @@ contract USTP is ERC20, AccessControl {
 	using SafeERC20 for ERC20;
 	using SafeMath for uint256;
 
-	ERC20 public nUSTP;
+	ERC20 public rUSTP;
 
-	constructor(address _admin, ERC20 _nUSTP) ERC20("USTP", "USTP") {
+	constructor(address _admin, ERC20 _rUSTP) ERC20("USTP", "USTP") {
 		_setupRole(DEFAULT_ADMIN_ROLE, _admin);
-		nUSTP = _nUSTP;
+		rUSTP = _rUSTP;
 	}
 
 	/**
-	 * @dev deposit nUSTP to USTP
+	 * @dev deposit rUSTP to USTP
 	 * @param _amount the amount of USTP
 	 */
 	function deposit(uint256 _amount) external {
 		// equal amount
-		require(_amount > 0, "can't deposit zero nUSTP");
-		nUSTP.safeTransferFrom(msg.sender, address(this), _amount);
+		require(_amount > 0, "can't deposit zero rUSTP");
+		rUSTP.safeTransferFrom(msg.sender, address(this), _amount);
 		_mint(msg.sender, _amount);
 	}
 
 	/**
-	 * @dev withdraw USTP to nUSTP
+	 * @dev withdraw USTP to rUSTP
 	 * @param _amount the amount of USTP
 	 */
 	function withdraw(uint256 _amount) external {
-		require(_amount > 0, "can't withdraw zero nUSTP");
+		require(_amount > 0, "can't withdraw zero rUSTP");
 		_burn(msg.sender, _amount);
-		nUSTP.safeTransfer(msg.sender, _amount);
+		rUSTP.safeTransfer(msg.sender, _amount);
 	}
 
 	/**
-	 * @dev wrap all iUSTP to nUSTP
+	 * @dev wrap all iUSTP to rUSTP
 	 */
 	function unwarpAll() external {
 		uint256 userBalance = balanceOf(msg.sender);
 		require(userBalance > 0, "can't wrap zero iUSTP");
 		_burn(msg.sender, userBalance);
 
-		nUSTP.safeTransfer(msg.sender, userBalance);
+		rUSTP.safeTransfer(msg.sender, userBalance);
 	}
 
 	/**
@@ -65,19 +65,19 @@ contract USTP is ERC20, AccessControl {
 		address target,
 		uint256 amountToRecover
 	) external onlyRole(DEFAULT_ADMIN_ROLE) {
-		require(tokenAddress != address(nUSTP), "can't recover nUSTP");
+		require(tokenAddress != address(rUSTP), "can't recover rUSTP");
 		ERC20(tokenAddress).safeTransfer(target, amountToRecover);
 	}
 
 	/**
-	 * @dev Allows to recovery nUSTP
+	 * @dev Allows to recovery rUSTP
 	 * @param target Address for receive token
 	 */
 	function claimUSTP(address target) external onlyRole(DEFAULT_ADMIN_ROLE) {
 		uint256 totalDeposit = totalSupply();
-		uint256 realLockAmount = nUSTP.balanceOf(address(this));
+		uint256 realLockAmount = rUSTP.balanceOf(address(this));
 		uint256 claimAmount = realLockAmount - totalDeposit;
 		require(claimAmount > 0, "no");
-		nUSTP.safeTransfer(target, claimAmount);
+		rUSTP.safeTransfer(target, claimAmount);
 	}
 }

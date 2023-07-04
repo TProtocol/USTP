@@ -8,45 +8,45 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
  * @title Interest-bearing ERC20-like token for TProtocol.
  *
  * This contract is abstract. To make the contract deployable override the
- * `_getTotalSupplynUSTP` function. `nUSTPool.sol` contract inherits nUSTP and defines
- * the `_getTotalSupplynUSTP` function.
+ * `_getTotalSupplyrUSTP` function. `rUSTPool.sol` contract inherits rUSTP and defines
+ * the `_getTotalSupplyrUSTP` function.
  *
- * nUSTP balances are dynamic and represent the holder's share in the total amount
+ * rUSTP balances are dynamic and represent the holder's share in the total amount
  * of Ether controlled by the protocol. Account shares aren't normalized, so the
  * contract also stores the sum of all shares to calculate each account's token balance
  * which equals to:
  *
- *   shares[account] * _getTotalSupplynUSTP() / _getTotalShares()
+ *   shares[account] * _getTotalSupplyrUSTP() / _getTotalShares()
  *
  * For example, assume that we have:
  *
- *   _getTotalSupplynUSTP() -> 10 nUSTP
+ *   _getTotalSupplyrUSTP() -> 10 rUSTP
  *   sharesOf(user1) -> 100
  *   sharesOf(user2) -> 400
  *
  * Therefore:
  *
- *   balanceOf(user1) -> 2 tokens which corresponds 2 nUSTP
- *   balanceOf(user2) -> 8 tokens which corresponds 8 nUSTP
+ *   balanceOf(user1) -> 2 tokens which corresponds 2 rUSTP
+ *   balanceOf(user2) -> 8 tokens which corresponds 8 rUSTP
  *
- * Since balances of all token holders change when the amount of total supplied nUSTP
+ * Since balances of all token holders change when the amount of total supplied rUSTP
  * changes, this token cannot fully implement ERC20 standard: it only emits `Transfer`
  * events upon explicit transfer between holders. In contrast, when total amount of
  * pooled Ether increases, no `Transfer` events are generated: doing so would require
  * emitting an event for each token holder and thus running an unbounded loop.
  */
 
-abstract contract nUSTP is ERC20 {
+abstract contract rUSTP is ERC20 {
 	using SafeMath for uint256;
 	uint256 private totalShares;
 
 	/**
-	 * @dev nUSTP balances are dynamic and are calculated based on the accounts' shares
+	 * @dev rUSTP balances are dynamic and are calculated based on the accounts' shares
 	 * and the total amount of Ether controlled by the protocol. Account shares aren't
 	 * normalized, so the contract also stores the sum of all shares to calculate
 	 * each account's token balance which equals to:
 	 *
-	 *   shares[account] * _getTotalSupplynUSTP() / _getTotalShares()
+	 *   shares[account] * _getTotalSupplyrUSTP() / _getTotalShares()
 	 */
 	mapping(address => uint256) private shares;
 
@@ -66,12 +66,12 @@ abstract contract nUSTP is ERC20 {
 	 * @notice An executed `burnShares` request
 	 *
 	 * @dev Reports simultaneously burnt shares amount
-	 * and corresponding nUSTP amount.
-	 * The nUSTP amount is calculated twice: before and after the burning incurred rebase.
+	 * and corresponding rUSTP amount.
+	 * The rUSTP amount is calculated twice: before and after the burning incurred rebase.
 	 *
 	 * @param account holder of the burnt shares
-	 * @param preRebaseTokenAmount amount of nUSTP the burnt shares corresponded to before the burn
-	 * @param postRebaseTokenAmount amount of nUSTP the burnt shares corresponded to after the burn
+	 * @param preRebaseTokenAmount amount of rUSTP the burnt shares corresponded to before the burn
+	 * @param postRebaseTokenAmount amount of rUSTP the burnt shares corresponded to after the burn
 	 * @param sharesAmount amount of burnt shares
 	 */
 	event SharesBurnt(
@@ -91,21 +91,21 @@ abstract contract nUSTP is ERC20 {
 	/**
 	 * @return the amount of tokens in existence.
 	 *
-	 * @dev Always equals to `_getTotalSupplynUSTP()` since token amount
-	 * is pegged to the total amount of nUSTP controlled by the protocol.
+	 * @dev Always equals to `_getTotalSupplyrUSTP()` since token amount
+	 * is pegged to the total amount of rUSTP controlled by the protocol.
 	 */
 	function totalSupply() public view override returns (uint256) {
-		return _getTotalSupplynUSTP();
+		return _getTotalSupplyrUSTP();
 	}
 
 	/**
 	 * @return the amount of tokens owned by the `_account`.
 	 *
 	 * @dev Balances are dynamic and equal the `_account`'s share in the amount of the
-	 * total nUSTP controlled by the protocol. See `sharesOf`.
+	 * total rUSTP controlled by the protocol. See `sharesOf`.
 	 */
 	function balanceOf(address _account) public view override returns (uint256) {
-		return getnUSTPAmountByShares(_sharesOf(_account));
+		return getrUSTPAmountByShares(_sharesOf(_account));
 	}
 
 	/**
@@ -126,23 +126,23 @@ abstract contract nUSTP is ERC20 {
 	}
 
 	/**
-	 * @return the amount of shares that corresponds to `_nUSTPAmount` protocol-supplied nUSTP.
+	 * @return the amount of shares that corresponds to `_rUSTPAmount` protocol-supplied rUSTP.
 	 */
-	function getSharesBynUSTPAmount(uint256 _nUSTPAmount) public view returns (uint256) {
-		uint256 totalSupplynUSTP = _getTotalSupplynUSTP();
+	function getSharesByrUSTPAmount(uint256 _rUSTPAmount) public view returns (uint256) {
+		uint256 totalSupplyrUSTP = _getTotalSupplyrUSTP();
 		return
-			totalSupplynUSTP == 0 ? 0 : _nUSTPAmount.mul(_getTotalShares()).div(totalSupplynUSTP);
+			totalSupplyrUSTP == 0 ? 0 : _rUSTPAmount.mul(_getTotalShares()).div(totalSupplyrUSTP);
 	}
 
 	/**
-	 * @return the amount of nUSTP that corresponds to `_sharesAmount` token shares.
+	 * @return the amount of rUSTP that corresponds to `_sharesAmount` token shares.
 	 */
-	function getnUSTPAmountByShares(uint256 _sharesAmount) public view returns (uint256) {
+	function getrUSTPAmountByShares(uint256 _sharesAmount) public view returns (uint256) {
 		uint256 totalSharesAmount = _getTotalShares();
 		return
 			totalSharesAmount == 0
 				? 0
-				: _sharesAmount.mul(_getTotalSupplynUSTP()).div(totalSharesAmount);
+				: _sharesAmount.mul(_getTotalSupplyrUSTP()).div(totalSharesAmount);
 	}
 
 	/**
@@ -162,17 +162,17 @@ abstract contract nUSTP is ERC20 {
 	 */
 	function transferShares(address _recipient, uint256 _sharesAmount) external returns (uint256) {
 		_transferShares(msg.sender, _recipient, _sharesAmount);
-		uint256 tokensAmount = getnUSTPAmountByShares(_sharesAmount);
+		uint256 tokensAmount = getrUSTPAmountByShares(_sharesAmount);
 		_emitTransferEvents(msg.sender, _recipient, tokensAmount, _sharesAmount);
 		return tokensAmount;
 	}
 
 	/**
-	 * @return the total amount of nUSTP.
+	 * @return the total amount of rUSTP.
 	 * @dev This is used for calculating tokens from shares and vice versa.
 	 * @dev This function is required to be implemented in a derived contract.
 	 */
-	function _getTotalSupplynUSTP() internal view virtual returns (uint256);
+	function _getTotalSupplyrUSTP() internal view virtual returns (uint256);
 
 	/**
 	 * @notice Moves `_amount` tokens from `_sender` to `_recipient`.
@@ -180,7 +180,7 @@ abstract contract nUSTP is ERC20 {
 	 * Emits a `TransferShares` event.
 	 */
 	function _transfer(address _sender, address _recipient, uint256 _amount) internal override {
-		uint256 _sharesToTransfer = getSharesBynUSTPAmount(_amount);
+		uint256 _sharesToTransfer = getSharesByrUSTPAmount(_amount);
 		_transferShares(_sender, _recipient, _sharesToTransfer);
 		_emitTransferEvents(_sender, _recipient, _amount, _sharesToTransfer);
 	}
@@ -269,14 +269,14 @@ abstract contract nUSTP is ERC20 {
 		uint256 accountShares = shares[_account];
 		require(_sharesAmount <= accountShares, "BALANCE_EXCEEDED");
 
-		uint256 preRebaseTokenAmount = getSharesBynUSTPAmount(_sharesAmount);
+		uint256 preRebaseTokenAmount = getSharesByrUSTPAmount(_sharesAmount);
 
 		newTotalShares = _getTotalShares().sub(_sharesAmount);
 		totalShares = newTotalShares;
 
 		shares[_account] = accountShares.sub(_sharesAmount);
 
-		uint256 postRebaseTokenAmount = getSharesBynUSTPAmount(_sharesAmount);
+		uint256 postRebaseTokenAmount = getSharesByrUSTPAmount(_sharesAmount);
 
 		emit SharesBurnt(_account, preRebaseTokenAmount, postRebaseTokenAmount, _sharesAmount);
 

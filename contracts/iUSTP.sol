@@ -6,59 +6,59 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "./interfaces/InUSTP.sol";
+import "./interfaces/IrUSTP.sol";
 
 contract iUSTP is ERC20, AccessControl {
 	using SafeERC20 for ERC20;
 	using SafeMath for uint256;
 
-	ERC20 public nUSTP;
+	ERC20 public rUSTP;
 
-	constructor(address _admin, ERC20 _nUSTP) ERC20("Wrapped nUSTP", "iUSTP") {
+	constructor(address _admin, ERC20 _rUSTP) ERC20("Wrapped rUSTP", "iUSTP") {
 		_setupRole(DEFAULT_ADMIN_ROLE, _admin);
-		nUSTP = _nUSTP;
+		rUSTP = _rUSTP;
 	}
 
 	/**
 	 * @dev the exchange rate of iUSTP
 	 */
 	function pricePerToken() external view returns (uint256) {
-		return InUSTP(address(nUSTP)).getnUSTPAmountByShares(1 ether);
+		return IrUSTP(address(rUSTP)).getrUSTPAmountByShares(1 ether);
 	}
 
 	/**
-	 * @dev warp nUSTP to iUSTP
-	 * @param _amount the amount of nUSTP
+	 * @dev warp rUSTP to iUSTP
+	 * @param _amount the amount of rUSTP
 	 */
 	function warp(uint256 _amount) external {
 		// equal shares
-		uint256 depositShares = InUSTP(address(nUSTP)).getSharesBynUSTPAmount(_amount);
-		require(depositShares > 0, "can't warp zero nUSTP");
-		nUSTP.safeTransferFrom(msg.sender, address(this), _amount);
+		uint256 depositShares = IrUSTP(address(rUSTP)).getSharesByrUSTPAmount(_amount);
+		require(depositShares > 0, "can't warp zero rUSTP");
+		rUSTP.safeTransferFrom(msg.sender, address(this), _amount);
 		_mint(msg.sender, depositShares);
 	}
 
 	/**
-	 * @dev unwarp iUSTP to nUSTP
+	 * @dev unwarp iUSTP to rUSTP
 	 * @param _share the share of iUSTP
 	 */
 	function unwarp(uint256 _share) external {
-		uint256 withdrawAmount = InUSTP(address(nUSTP)).getnUSTPAmountByShares(_share);
-		require(withdrawAmount > 0, "can't unwarp zero nUSTP");
+		uint256 withdrawAmount = IrUSTP(address(rUSTP)).getrUSTPAmountByShares(_share);
+		require(withdrawAmount > 0, "can't unwarp zero rUSTP");
 		_burn(msg.sender, _share);
-		nUSTP.safeTransfer(msg.sender, withdrawAmount);
+		rUSTP.safeTransfer(msg.sender, withdrawAmount);
 	}
 
 	/**
-	 * @dev wrap all iUSTP to nUSTP
+	 * @dev wrap all iUSTP to rUSTP
 	 */
 	function unwarpAll() external {
 		uint256 userBalance = balanceOf(msg.sender);
-		uint256 withdrawAmount = InUSTP(address(nUSTP)).getnUSTPAmountByShares(userBalance);
+		uint256 withdrawAmount = IrUSTP(address(rUSTP)).getrUSTPAmountByShares(userBalance);
 		require(withdrawAmount > 0, "can't wrap zero iUSTP");
 		_burn(msg.sender, userBalance);
 
-		nUSTP.safeTransfer(msg.sender, withdrawAmount);
+		rUSTP.safeTransfer(msg.sender, withdrawAmount);
 	}
 
 	/**
@@ -72,19 +72,19 @@ contract iUSTP is ERC20, AccessControl {
 		address target,
 		uint256 amountToRecover
 	) external onlyRole(DEFAULT_ADMIN_ROLE) {
-		require(tokenAddress != address(nUSTP), "can't recover nUSTP");
+		require(tokenAddress != address(rUSTP), "can't recover rUSTP");
 		ERC20(tokenAddress).safeTransfer(target, amountToRecover);
 	}
 
 	/**
-	 * @dev Allows to recovery nUSTP
+	 * @dev Allows to recovery rUSTP
 	 * @param target Address for receive token
 	 */
 	function recoverUSTP(address target) external onlyRole(DEFAULT_ADMIN_ROLE) {
 		uint256 totalDepositShares = totalSupply();
-		uint256 realLockShares = InUSTP(address(nUSTP)).sharesOf(address(this));
+		uint256 realLockShares = IrUSTP(address(rUSTP)).sharesOf(address(this));
 		uint256 recoverAmount = realLockShares - totalDepositShares;
 		require(recoverAmount > 0, "no");
-		nUSTP.safeTransfer(target, recoverAmount);
+		rUSTP.safeTransfer(target, recoverAmount);
 	}
 }

@@ -6,7 +6,7 @@ const {
 	deployTokensFixture,
 	deployCurvePoolFixture,
 	deployMockPriceFeedFixture,
-	deploynUSTPoolFixture,
+	deployrUSTPoolFixture,
 	deployLiquidatePoolFixture,
 	deployInterestRateModelFixture,
 	deploySTBTTokensFixture,
@@ -33,7 +33,7 @@ describe("migrator", function () {
 	let daiToken, usdcToken, usdtToken, stbtToken, wtbtToken
 	let stbtSwapPool
 	let priceFeed, interestRateModel
-	let nustpool, liquidatePool, mockTreasury, migrator
+	let rustpool, liquidatePool, mockTreasury, migrator
 	let now
 	let tokens
 	let recovery
@@ -62,11 +62,11 @@ describe("migrator", function () {
 			stbtToken
 		))
 		;({ priceFeed } = await deployMockPriceFeedFixture(deployer))
-		;({ nustpool } = await deploynUSTPoolFixture(admin, deployer, stbtToken, usdcToken))
+		;({ rustpool } = await deployrUSTPoolFixture(admin, deployer, stbtToken, usdcToken))
 		;({ liquidatePool } = await deployLiquidatePoolFixture(
 			admin,
 			deployer,
-			nustpool,
+			rustpool,
 			mxpRedeemPool,
 			stbtToken,
 			usdcToken,
@@ -79,12 +79,12 @@ describe("migrator", function () {
 
 		await liquidatePool.connect(admin).setCurvePool(stbtSwapPool.address)
 		await liquidatePool.connect(admin).setRedeemPool(mxpRedeemPool.address)
-		await nustpool.connect(admin).initLiquidatePool(liquidatePool.address)
-		await nustpool.connect(admin).setInterestRateModel(interestRateModel.address)
+		await rustpool.connect(admin).initLiquidatePool(liquidatePool.address)
+		await rustpool.connect(admin).setInterestRateModel(interestRateModel.address)
 
 		await stbtToken.connect(deployer).setPermission(mxpRedeemPool.address, permission)
 		await stbtToken.connect(deployer).setPermission(liquidatePool.address, permission)
-		await stbtToken.connect(deployer).setPermission(nustpool.address, permission)
+		await stbtToken.connect(deployer).setPermission(rustpool.address, permission)
 
 		await liquidatePool.connect(admin).setFeeCollector(feeCollector.address)
 
@@ -93,7 +93,7 @@ describe("migrator", function () {
 		tokens = [daiToken, usdcToken, usdtToken]
 		;({ migrator } = await deployMigrator(
 			deployer,
-			nustpool,
+			rustpool,
 			wtbtToken,
 			mockTreasury,
 			stbtToken,
@@ -102,29 +102,29 @@ describe("migrator", function () {
 		await stbtToken.connect(deployer).setPermission(migrator.address, permission)
 		await stbtToken.connect(deployer).setPermission(recovery.address, permission)
 		await stbtToken.connect(deployer).setPermission(mockTreasury.address, permission)
-		await nustpool.connect(admin).initMigrator(migrator.address)
+		await rustpool.connect(admin).initMigrator(migrator.address)
 	})
 
 	const amountToSupplySTBT = ethers.utils.parseUnits("100", 18) // 100 STBT
 	describe("Migrate", function () {
 		it("Should be able to migrate", async function () {
 			await stbtToken.connect(deployer).transfer(mockTreasury.address, amountToSupplySTBT)
-			await stbtToken.connect(recovery).approve(nustpool.address, amountToSupplySTBT)
+			await stbtToken.connect(recovery).approve(rustpool.address, amountToSupplySTBT)
 			await wtbtToken.connect(deployer).approve(migrator.address, amountToSupplySTBT)
 
 			const supplySTBTshares = await stbtToken.getSharesByAmount(amountToSupplySTBT)
 
 			await migrator.connect(deployer).migrate(amountToSupplySTBT)
 			// recovery's supply
-			expect(await nustpool.depositedSharesSTBT(recovery.address)).to.be.equal(
+			expect(await rustpool.depositedSharesSTBT(recovery.address)).to.be.equal(
 				supplySTBTshares
 			)
-			const borrowShares = await nustpool.getSharesBynUSTPAmount(amountToSupplySTBT)
+			const borrowShares = await rustpool.getSharesByrUSTPAmount(amountToSupplySTBT)
 			// recovery's loan
-			expect(await nustpool.getBorrowedSharesOf(recovery.address)).to.be.equal(borrowShares)
-			expect(await nustpool.totalBorrowShares()).to.be.equal(borrowShares)
-			// user used to migrate. receive nustp
-			expect(await nustpool.balanceOf(deployer.address)).to.be.equal(amountToSupplySTBT)
+			expect(await rustpool.getBorrowedSharesOf(recovery.address)).to.be.equal(borrowShares)
+			expect(await rustpool.totalBorrowShares()).to.be.equal(borrowShares)
+			// user used to migrate. receive rustp
+			expect(await rustpool.balanceOf(deployer.address)).to.be.equal(amountToSupplySTBT)
 		})
 	})
 })

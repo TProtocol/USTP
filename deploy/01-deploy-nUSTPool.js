@@ -1,5 +1,5 @@
 const { getNamedAccounts, deployments, network } = require("hardhat")
-const { developmentChains, AddressConfig, nUSTPoolId } = require("../common/network-config")
+const { developmentChains, AddressConfig, rUSTPoolId } = require("../common/network-config")
 const { verify } = require("../common/verify")
 
 module.exports = async ({ getNamedAccounts, deployments }) => {
@@ -8,24 +8,24 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 
 	const config = AddressConfig[network.config.chainId]
 
-	const nUSTPoolArgs = [config.adminAddress, config.stbtAddress, config.usdcAddress]
-	const deployResult = await deploy(nUSTPoolId, {
+	const rUSTPoolArgs = [config.adminAddress, config.stbtAddress, config.usdcAddress]
+	const deployResult = await deploy(rUSTPoolId, {
 		from: deployer,
 		log: true,
 		waitConfirmations: 5,
-		args: nUSTPoolArgs,
+		args: rUSTPoolArgs,
 	})
 
-	const nUSTPool = await ethers.getContractAt(nUSTPoolId, deployResult.address)
+	const rUSTPool = await ethers.getContractAt(rUSTPoolId, deployResult.address)
 
-	log(`🎉 nUSTPool deployed at ${nUSTPool.address}`)
+	log(`🎉 rUSTPool deployed at ${rUSTPool.address}`)
 
 	if (!developmentChains.includes(network.name)) {
 		console.log("Waiting for 1min to wait for etherscan to index the contract...")
 		await new Promise((resolve) => setTimeout(resolve, 60000))
 		console.log("Verifying vault on Etherscan...")
-		await verify(nUSTPool.address, nUSTPoolArgs)
+		await verify(rUSTPool.address, rUSTPoolArgs)
 	}
 }
 
-module.exports.tags = ["nUSTPool", "all"]
+module.exports.tags = ["rUSTPool", "all"]

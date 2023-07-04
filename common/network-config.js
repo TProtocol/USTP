@@ -46,7 +46,7 @@ const AddressConfig = {
 	11155111: SepoliaAddressConfig,
 }
 
-const nUSTPoolId = "nUSTPool"
+const rUSTPoolId = "rUSTPool"
 const InterestRateModelId = "InterestRateModel"
 const LiquidatePoolId = "LiquidatePool"
 const iUSTPId = "iUSTP"
@@ -65,7 +65,7 @@ const testnetId = {
 module.exports = {
 	developmentChains,
 	AddressConfig,
-	nUSTPoolId,
+	rUSTPoolId,
 	InterestRateModelId,
 	LiquidatePoolId,
 	iUSTPId,

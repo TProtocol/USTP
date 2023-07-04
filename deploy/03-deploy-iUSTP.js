@@ -2,7 +2,7 @@ const { getNamedAccounts, deployments, network } = require("hardhat")
 const {
 	developmentChains,
 	AddressConfig,
-	nUSTPoolId,
+	rUSTPoolId,
 	iUSTPId,
 } = require("../common/network-config")
 const { verify } = require("../common/verify")
@@ -12,14 +12,14 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 	const { deployer } = await getNamedAccounts()
 
 	const config = AddressConfig[network.config.chainId]
-	const nUSTPool = await ethers.getContractAt(
-		nUSTPoolId,
+	const rUSTPool = await ethers.getContractAt(
+		rUSTPoolId,
 		(
-			await deployments.get(nUSTPoolId)
+			await deployments.get(rUSTPoolId)
 		).address
 	)
 
-	const iUSTPArgs = [config.adminAddress, nUSTPool.address]
+	const iUSTPArgs = [config.adminAddress, rUSTPool.address]
 	const deployResult = await deploy(iUSTPId, {
 		from: deployer,
 		log: true,

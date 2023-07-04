@@ -6,7 +6,7 @@ const {
 	deployTokensFixture,
 	deployCurvePoolFixture,
 	deployMockPriceFeedFixture,
-	deploynUSTPoolFixture,
+	deployrUSTPoolFixture,
 	deployLiquidatePoolFixture,
 	deployInterestRateModelFixture,
 	deploySTBTTokensFixture,
@@ -31,7 +31,7 @@ describe("USTP", function () {
 	let daiToken, usdcToken, usdtToken, stbtToken, USTPtoken
 	let stbtSwapPool
 	let priceFeed, interestRateModel
-	let nustpool, liquidatePool
+	let rustpool, liquidatePool
 	let now
 	let tokens
 
@@ -43,7 +43,7 @@ describe("USTP", function () {
 	const amountToSupplyUSDC = ethers.utils.parseUnits("100", 6) // 100 USDC
 	const amountToSupplySTBT = ethers.utils.parseUnits("100", 18) // 100 STBT
 	const amountToBorrowUSDC = ethers.utils.parseUnits("98", 6) // 98 USDC
-	const amountToSupplynUSTP = ethers.utils.parseUnits("100", 18) // 100 nUSTP
+	const amountToSupplyrUSTP = ethers.utils.parseUnits("100", 18) // 100 rUSTP
 
 	beforeEach("load fixture", async () => {
 		;[admin, deployer, usdcInvestor, stbtInvestor, mxpRedeemPool, feeCollector] =
@@ -63,11 +63,11 @@ describe("USTP", function () {
 			stbtToken
 		))
 		;({ priceFeed } = await deployMockPriceFeedFixture(deployer))
-		;({ nustpool } = await deploynUSTPoolFixture(admin, deployer, stbtToken, usdcToken))
+		;({ rustpool } = await deployrUSTPoolFixture(admin, deployer, stbtToken, usdcToken))
 		;({ liquidatePool } = await deployLiquidatePoolFixture(
 			admin,
 			deployer,
-			nustpool,
+			rustpool,
 			mxpRedeemPool,
 			stbtToken,
 			usdcToken,
@@ -75,15 +75,15 @@ describe("USTP", function () {
 			[daiToken.address, usdcToken.address, usdtToken.address]
 		))
 		;({ interestRateModel } = await deployInterestRateModelFixture(deployer))
-		;({ USTPtoken } = await deployUSTPFixture(admin, deployer, nustpool))
+		;({ USTPtoken } = await deployUSTPFixture(admin, deployer, rustpool))
 		await liquidatePool.connect(admin).setCurvePool(stbtSwapPool.address)
 		await liquidatePool.connect(admin).setRedeemPool(mxpRedeemPool.address)
-		await nustpool.connect(admin).initLiquidatePool(liquidatePool.address)
-		await nustpool.connect(admin).setInterestRateModel(interestRateModel.address)
+		await rustpool.connect(admin).initLiquidatePool(liquidatePool.address)
+		await rustpool.connect(admin).setInterestRateModel(interestRateModel.address)
 
 		await stbtToken.connect(deployer).setPermission(mxpRedeemPool.address, permission)
 		await stbtToken.connect(deployer).setPermission(liquidatePool.address, permission)
-		await stbtToken.connect(deployer).setPermission(nustpool.address, permission)
+		await stbtToken.connect(deployer).setPermission(rustpool.address, permission)
 
 		await liquidatePool.connect(admin).setFeeCollector(feeCollector.address)
 
@@ -91,74 +91,74 @@ describe("USTP", function () {
 
 		tokens = [daiToken, usdcToken, usdtToken]
 
-		await usdcToken.connect(usdcInvestor).approve(nustpool.address, amountToSupplyUSDC)
-		await nustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
-		await stbtToken.connect(stbtInvestor).approve(nustpool.address, amountToSupplySTBT)
-		await nustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT)
+		await usdcToken.connect(usdcInvestor).approve(rustpool.address, amountToSupplyUSDC)
+		await rustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
+		await stbtToken.connect(stbtInvestor).approve(rustpool.address, amountToSupplySTBT)
+		await rustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT)
 
-		await nustpool.connect(stbtInvestor).borrowUSDC(amountToBorrowUSDC)
+		await rustpool.connect(stbtInvestor).borrowUSDC(amountToBorrowUSDC)
 	})
 
 	describe("Deposit USTP", function () {
 		it("Should be able to deposit", async function () {
-			await nustpool.connect(usdcInvestor).approve(USTPtoken.address, amountToSupplynUSTP)
-			const supplyBalance = await nustpool
+			await rustpool.connect(usdcInvestor).approve(USTPtoken.address, amountToSupplyrUSTP)
+			const supplyBalance = await rustpool
 				.connect(usdcInvestor)
 				.balanceOf(usdcInvestor.address)
 
-			await USTPtoken.connect(usdcInvestor).deposit(amountToSupplynUSTP)
+			await USTPtoken.connect(usdcInvestor).deposit(amountToSupplyrUSTP)
 
 			expect(await USTPtoken.balanceOf(usdcInvestor.address)).to.be.equal(supplyBalance)
 		})
 
-		it("Should fail if deposit zero nUSTP", async function () {
+		it("Should fail if deposit zero rUSTP", async function () {
 			await expect(USTPtoken.connect(stbtInvestor).deposit(0)).to.be.revertedWith(
-				"can't deposit zero nUSTP"
+				"can't deposit zero rUSTP"
 			)
 		})
 	})
 
 	describe("Withdraw USTP", function () {
 		beforeEach(async () => {
-			await nustpool.connect(usdcInvestor).approve(USTPtoken.address, amountToSupplynUSTP)
-			await USTPtoken.connect(usdcInvestor).deposit(amountToSupplynUSTP)
+			await rustpool.connect(usdcInvestor).approve(USTPtoken.address, amountToSupplyrUSTP)
+			await USTPtoken.connect(usdcInvestor).deposit(amountToSupplyrUSTP)
 		})
 		it("Should be able to withdraw", async function () {
-			const beforeBalance = await nustpool.balanceOf(usdcInvestor.address)
+			const beforeBalance = await rustpool.balanceOf(usdcInvestor.address)
 			const withdrawAmount = await USTPtoken.balanceOf(usdcInvestor.address)
 			await USTPtoken.connect(usdcInvestor).withdraw(withdrawAmount)
 
-			expect(await nustpool.balanceOf(usdcInvestor.address)).to.be.equal(
+			expect(await rustpool.balanceOf(usdcInvestor.address)).to.be.equal(
 				beforeBalance.add(withdrawAmount)
 			)
 		})
 
-		it("Should fail if withdraw zero nUSTP", async function () {
+		it("Should fail if withdraw zero rUSTP", async function () {
 			await expect(USTPtoken.connect(stbtInvestor).withdraw(0)).to.be.revertedWith(
-				"can't withdraw zero nUSTP"
+				"can't withdraw zero rUSTP"
 			)
 		})
 	})
 
 	describe("Claim USTP", function () {
 		beforeEach(async () => {
-			await nustpool.connect(usdcInvestor).approve(USTPtoken.address, amountToSupplynUSTP)
-			await USTPtoken.connect(usdcInvestor).deposit(amountToSupplynUSTP)
+			await rustpool.connect(usdcInvestor).approve(USTPtoken.address, amountToSupplyrUSTP)
+			await USTPtoken.connect(usdcInvestor).deposit(amountToSupplyrUSTP)
 		})
 		it("Should be able to claim", async function () {
-			await nustpool.connect(admin).setReserveFactor(0)
-			const beforeBalance = await nustpool.balanceOf(admin.address)
+			await rustpool.connect(admin).setReserveFactor(0)
+			const beforeBalance = await rustpool.balanceOf(admin.address)
 			now = now + ONE_YEAR
 			await mineBlockWithTimestamp(ethers.provider, now)
 			// to realize interest
-			await nustpool.connect(admin).setReserveFactor(0)
+			await rustpool.connect(admin).setReserveFactor(0)
 			await USTPtoken.connect(admin).claimUSTP(admin.address)
-			const afterBalance = await nustpool.balanceOf(admin.address)
+			const afterBalance = await rustpool.balanceOf(admin.address)
 			const claimAmount = afterBalance.sub(beforeBalance)
 			// ~ 4.2%
 			expect(claimAmount).to.be.within(
-				amountToSupplynUSTP.mul(41).div(1000),
-				amountToSupplynUSTP.mul(42).div(1000)
+				amountToSupplyrUSTP.mul(41).div(1000),
+				amountToSupplyrUSTP.mul(42).div(1000)
 			)
 		})
 	})

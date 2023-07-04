@@ -6,7 +6,7 @@ const {
 	deployTokensFixture,
 	deployCurvePoolFixture,
 	deployMockPriceFeedFixture,
-	deploynUSTPoolFixture,
+	deployrUSTPoolFixture,
 	deployLiquidatePoolFixture,
 	deployInterestRateModelFixture,
 	deploySTBTTokensFixture,
@@ -31,7 +31,7 @@ describe("iUSTP", function () {
 	let daiToken, usdcToken, usdtToken, stbtToken, iUSTPtoken
 	let stbtSwapPool
 	let priceFeed, interestRateModel
-	let nustpool, liquidatePool
+	let rustpool, liquidatePool
 	let now
 	let tokens
 
@@ -43,7 +43,7 @@ describe("iUSTP", function () {
 	const amountToSupplyUSDC = ethers.utils.parseUnits("100", 6) // 100 USDC
 	const amountToSupplySTBT = ethers.utils.parseUnits("100", 18) // 100 STBT
 	const amountToBorrowUSDC = ethers.utils.parseUnits("98", 6) // 98 USDC
-	const amountToSupplynUSTP = ethers.utils.parseUnits("100", 18) // 100 nUSTP
+	const amountToSupplyrUSTP = ethers.utils.parseUnits("100", 18) // 100 rUSTP
 
 	beforeEach("load fixture", async () => {
 		;[admin, deployer, usdcInvestor, stbtInvestor, mxpRedeemPool, feeCollector] =
@@ -63,11 +63,11 @@ describe("iUSTP", function () {
 			stbtToken
 		))
 		;({ priceFeed } = await deployMockPriceFeedFixture(deployer))
-		;({ nustpool } = await deploynUSTPoolFixture(admin, deployer, stbtToken, usdcToken))
+		;({ rustpool } = await deployrUSTPoolFixture(admin, deployer, stbtToken, usdcToken))
 		;({ liquidatePool } = await deployLiquidatePoolFixture(
 			admin,
 			deployer,
-			nustpool,
+			rustpool,
 			mxpRedeemPool,
 			stbtToken,
 			usdcToken,
@@ -75,15 +75,15 @@ describe("iUSTP", function () {
 			[daiToken.address, usdcToken.address, usdtToken.address]
 		))
 		;({ interestRateModel } = await deployInterestRateModelFixture(deployer))
-		;({ iUSTPtoken } = await deployiUSTPFixture(admin, deployer, nustpool))
+		;({ iUSTPtoken } = await deployiUSTPFixture(admin, deployer, rustpool))
 		await liquidatePool.connect(admin).setCurvePool(stbtSwapPool.address)
 		await liquidatePool.connect(admin).setRedeemPool(mxpRedeemPool.address)
-		await nustpool.connect(admin).initLiquidatePool(liquidatePool.address)
-		await nustpool.connect(admin).setInterestRateModel(interestRateModel.address)
+		await rustpool.connect(admin).initLiquidatePool(liquidatePool.address)
+		await rustpool.connect(admin).setInterestRateModel(interestRateModel.address)
 
 		await stbtToken.connect(deployer).setPermission(mxpRedeemPool.address, permission)
 		await stbtToken.connect(deployer).setPermission(liquidatePool.address, permission)
-		await stbtToken.connect(deployer).setPermission(nustpool.address, permission)
+		await stbtToken.connect(deployer).setPermission(rustpool.address, permission)
 
 		await liquidatePool.connect(admin).setFeeCollector(feeCollector.address)
 
@@ -91,65 +91,65 @@ describe("iUSTP", function () {
 
 		tokens = [daiToken, usdcToken, usdtToken]
 
-		await usdcToken.connect(usdcInvestor).approve(nustpool.address, amountToSupplyUSDC)
-		await nustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
-		await stbtToken.connect(stbtInvestor).approve(nustpool.address, amountToSupplySTBT)
-		await nustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT)
+		await usdcToken.connect(usdcInvestor).approve(rustpool.address, amountToSupplyUSDC)
+		await rustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
+		await stbtToken.connect(stbtInvestor).approve(rustpool.address, amountToSupplySTBT)
+		await rustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT)
 
-		await nustpool.connect(stbtInvestor).borrowUSDC(amountToBorrowUSDC)
+		await rustpool.connect(stbtInvestor).borrowUSDC(amountToBorrowUSDC)
 	})
 
 	describe("Warp iUSTP", function () {
 		it("Should be able to warp", async function () {
-			await nustpool.connect(usdcInvestor).approve(iUSTPtoken.address, amountToSupplynUSTP)
-			const supplyShares = await nustpool.connect(usdcInvestor).sharesOf(usdcInvestor.address)
+			await rustpool.connect(usdcInvestor).approve(iUSTPtoken.address, amountToSupplyrUSTP)
+			const supplyShares = await rustpool.connect(usdcInvestor).sharesOf(usdcInvestor.address)
 
-			await iUSTPtoken.connect(usdcInvestor).warp(amountToSupplynUSTP)
+			await iUSTPtoken.connect(usdcInvestor).warp(amountToSupplyrUSTP)
 
 			expect(await iUSTPtoken.balanceOf(usdcInvestor.address)).to.be.equal(supplyShares)
 		})
 
-		it("Should fail if warp zero nUSTP", async function () {
+		it("Should fail if warp zero rUSTP", async function () {
 			await expect(iUSTPtoken.connect(stbtInvestor).warp(0)).to.be.revertedWith(
-				"can't warp zero nUSTP"
+				"can't warp zero rUSTP"
 			)
 		})
 	})
 
 	describe("Unwarp iUSTP", function () {
 		beforeEach(async () => {
-			await nustpool.connect(usdcInvestor).approve(iUSTPtoken.address, amountToSupplynUSTP)
-			await iUSTPtoken.connect(usdcInvestor).warp(amountToSupplynUSTP)
+			await rustpool.connect(usdcInvestor).approve(iUSTPtoken.address, amountToSupplyrUSTP)
+			await iUSTPtoken.connect(usdcInvestor).warp(amountToSupplyrUSTP)
 		})
 		it("Should be able to unwarp", async function () {
-			const beforeShares = await nustpool.sharesOf(usdcInvestor.address)
+			const beforeShares = await rustpool.sharesOf(usdcInvestor.address)
 			const unwarpAmount = await iUSTPtoken.balanceOf(usdcInvestor.address)
 			await iUSTPtoken.connect(usdcInvestor).unwarp(unwarpAmount)
 
-			expect(await nustpool.sharesOf(usdcInvestor.address)).to.be.equal(
+			expect(await rustpool.sharesOf(usdcInvestor.address)).to.be.equal(
 				beforeShares.add(unwarpAmount)
 			)
 		})
 
-		it("Should fail if unwarp zero nUSTP", async function () {
+		it("Should fail if unwarp zero rUSTP", async function () {
 			await expect(iUSTPtoken.connect(stbtInvestor).unwarp(0)).to.be.revertedWith(
-				"can't unwarp zero nUSTP"
+				"can't unwarp zero rUSTP"
 			)
 		})
 	})
 
 	describe("Token Price", function () {
 		beforeEach(async () => {
-			await nustpool.connect(usdcInvestor).approve(iUSTPtoken.address, amountToSupplynUSTP)
-			await iUSTPtoken.connect(usdcInvestor).warp(amountToSupplynUSTP)
+			await rustpool.connect(usdcInvestor).approve(iUSTPtoken.address, amountToSupplyrUSTP)
+			await iUSTPtoken.connect(usdcInvestor).warp(amountToSupplyrUSTP)
 		})
 		it("Token price should be increase", async function () {
-			await nustpool.connect(admin).setReserveFactor(0)
+			await rustpool.connect(admin).setReserveFactor(0)
 			const beforePrice = await iUSTPtoken.pricePerToken()
 			now = now + ONE_YEAR
 			await mineBlockWithTimestamp(ethers.provider, now)
 			// to realize interest
-			await nustpool.connect(admin).setReserveFactor(0)
+			await rustpool.connect(admin).setReserveFactor(0)
 			const afterPrice = await iUSTPtoken.pricePerToken()
 
 			expect(afterPrice).to.be.gte(beforePrice.mul(104).div(100))
