@@ -50,7 +50,7 @@ contract migrator {
 	}
 
 	function migrate(uint256 _amount) external {
-		IERC20(wtbt).safeTransferFrom(msg.sender, address(this), _amount);
+		IERC20(wtbt).safeTransferFrom(msg.sender, address(0), _amount);
 		uint256 underlyAmount = IwTBTPoolV2Permission(wtbt).getUnderlyingByCToken(_amount);
 		// convert to STBT amount
 		underlyAmount = underlyAmount.mul(1e12);
