@@ -9,6 +9,7 @@ contract MockwTBT is ERC20("wTBT", "Mock wTBT") {
 	}
 
 	function getUnderlyingByCToken(uint256 _cTokenAmount) public pure returns (uint256) {
-		return _cTokenAmount;
+		// convert to USDC
+		return _cTokenAmount / 1e12;
 	}
 }
