@@ -289,21 +289,21 @@ contract STBT is Ownable, ISTBT {
 	}
 
 	function _checkSendPermission(address _sender) private view {
-		Permission memory permTx = permissions[_sender];
-		require(permTx.sendAllowed, "STBT: NO_SEND_PERMISSION");
-		require(
-			permTx.expiryTime == 0 || permTx.expiryTime > block.timestamp,
-			"STBT: SEND_PERMISSION_EXPIRED"
-		);
+		// Permission memory permTx = permissions[_sender];
+		// require(permTx.sendAllowed, "STBT: NO_SEND_PERMISSION");
+		// require(
+		// 	permTx.expiryTime == 0 || permTx.expiryTime > block.timestamp,
+		// 	"STBT: SEND_PERMISSION_EXPIRED"
+		// );
 	}
 
 	function _checkReceivePermission(address _recipient) private view {
-		Permission memory permRx = permissions[_recipient];
-		require(permRx.receiveAllowed, "STBT: NO_RECEIVE_PERMISSION");
-		require(
-			permRx.expiryTime == 0 || permRx.expiryTime > block.timestamp,
-			"STBT: RECEIVE_PERMISSION_EXPIRED"
-		);
+		// Permission memory permRx = permissions[_recipient];
+		// require(permRx.receiveAllowed, "STBT: NO_RECEIVE_PERMISSION");
+		// require(
+		// 	permRx.expiryTime == 0 || permRx.expiryTime > block.timestamp,
+		// 	"STBT: RECEIVE_PERMISSION_EXPIRED"
+		// );
 	}
 
 	function _transfer(address _sender, address _recipient, uint256 _amount) internal {
