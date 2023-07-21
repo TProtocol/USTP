@@ -30,13 +30,13 @@ const MainnetAddressConfig = {
 const SepoliaAddressConfig = {
 	adminAddress: adminAddress,
 	mpRedeemPoolAddress: "0xDEE9Ed3B19d104ADBbE255B6bEFC680b4eaAAda3",
-	stbtAddress: "0x93E8b62F8b5b9669f8dfd235d6fd3aEb1da689a3",
-	daiAddress: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
-	usdcAddress: "0x9B06975EfE73334946BC96bC411fA17B68195A5C",
-	usdtAddress: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+	stbtAddress: "0xD5e5B66513b8918155eC9E22C9780Ec51c2f806d",
+	daiAddress: "0xE307647A5cfA49d55d87552369c29a9f1a13ae8A",
+	usdcAddress: "0xc31dbBA1A491C5cF5c7B39AF63E61F782215FFaB",
+	usdtAddress: "0xc0B4247D396667D7457C78f5767F0a09dA556f2b",
 
-	// Chainlink: USDC/USD Price Feed
-	PriceFeedAddress: "0xA2F78ab2355fe2f984D808B5CeE7FD0A93D5270E",
+	// Mock
+	PriceFeedAddress: "0xa326A5e3febcA76E3dA66cB90aaC75BBcaD03949",
 }
 
 const AddressConfig = {
