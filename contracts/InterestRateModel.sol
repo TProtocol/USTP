@@ -23,7 +23,7 @@ contract InterestRateModel is AccessControl {
 	 * @notice Set APR
 	 */
 	function setAPR(uint256 newAPR) external onlyRole(DEFAULT_ADMIN_ROLE) {
-		require(newAPR <= 8 * 1e5, "apr should be less then 8%");
+		require(newAPR <= 8 * 1e6, "apr should be less then 8%");
 		APR = newAPR;
 		emit APRChanged(newAPR);
 	}
