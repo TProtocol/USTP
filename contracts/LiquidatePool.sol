@@ -273,6 +273,9 @@ contract LiquidatePool {
 		address receiver
 	) external {
 		require(msg.sender == ustpool, "unauthorized");
+		require(j > 0, "out of range");
+		require(j < 4, "out of range");
+
 		// From stbt to others
 		uint256 dy = curvePool.get_dy_underlying(0, j, stbtAmount);
 		require(dy >= minReturn, "!minReturn");
