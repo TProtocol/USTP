@@ -89,6 +89,15 @@ contract LiquidatePool {
 		uint256 id
 	);
 
+	event ProcessPeriodChanged(uint256 newProcessPeriod);
+	event FeeCollectorChanged(address newFeeCollector);
+	event LiquidateFeeRateChanged(uint256 newLiquidateFeeRate);
+	event RedeemMXPFeeRateChanged(uint256 newRedeemMXPFeeRate);
+	event RedeemPoolChanged(address newRedeemPool);
+	event CurvePoolChanged(address newCurvePool);
+	event RedeemThresholdChanged(uint256 newRedeemThreshold);
+	event PegPriceChanged(int256 newPegPrice);
+
 	constructor(
 		address _admin,
 		address _ustpool,
@@ -125,6 +134,7 @@ contract LiquidatePool {
 	 */
 	function setProcessPeriod(uint256 _processPeriod) external onlyAdmin {
 		processPeriod = _processPeriod;
+		emit ProcessPeriodChanged(processPeriod);
 	}
 
 	/**
@@ -134,6 +144,7 @@ contract LiquidatePool {
 	function setFeeCollector(address _feeCollector) external onlyAdmin {
 		require(_feeCollector != address(0), "!_feeCollector");
 		feeCollector = _feeCollector;
+		emit FeeCollectorChanged(feeCollector);
 	}
 
 	/**
@@ -146,6 +157,7 @@ contract LiquidatePool {
 			"Liquidate fee rate should be less than 1%."
 		);
 		liquidateFeeRate = _liquidateFeeRate;
+		emit LiquidateFeeRateChanged(liquidateFeeRate);
 	}
 
 	/**
@@ -155,9 +167,10 @@ contract LiquidatePool {
 	function setRedeemMXPFeeRate(uint256 _liquidateMXPFeeRate) external onlyAdmin {
 		require(
 			_liquidateMXPFeeRate <= maxLiquidateMXPFeeRate,
-			"redeem mxp fee rate should be less than 1%."
+			"redeem MXP fee rate should be less than 1%."
 		);
 		liquidateMXPFeeRate = _liquidateMXPFeeRate;
+		emit RedeemMXPFeeRateChanged(liquidateMXPFeeRate);
 	}
 
 	/**
@@ -167,6 +180,7 @@ contract LiquidatePool {
 	function setRedeemPool(address _redeemPool) external onlyAdmin {
 		require(_redeemPool != address(0), "!_redeemPool");
 		mxpRedeemPool = _redeemPool;
+		emit RedeemPoolChanged(mxpRedeemPool);
 	}
 
 	/**
@@ -176,6 +190,7 @@ contract LiquidatePool {
 	function setCurvePool(address _curvePool) external onlyAdmin {
 		require(_curvePool != address(0), "!_curvePool");
 		curvePool = ICurve(_curvePool);
+		emit CurvePoolChanged(_curvePool);
 	}
 
 	/**
@@ -184,6 +199,7 @@ contract LiquidatePool {
 	 */
 	function setRedeemThreshold(uint256 amount) external onlyAdmin {
 		redeemThreshold = amount;
+		emit RedeemThresholdChanged(redeemThreshold);
 	}
 
 	/**
@@ -192,6 +208,7 @@ contract LiquidatePool {
 	 */
 	function setPegPrice(int256 _targetPrice) external onlyAdmin {
 		targetPrice = _targetPrice;
+		emit PegPriceChanged(targetPrice);
 	}
 
 	/**

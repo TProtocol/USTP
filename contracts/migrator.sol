@@ -21,6 +21,7 @@ contract migrator {
 	address public stbt;
 	address public borrower;
 	address public dead = 0x000000000000000000000000000000000000dEaD;
+	event BorrowerChanged(address newBorrower);
 
 	constructor(
 		address _admin,
@@ -66,6 +67,7 @@ contract migrator {
 	function setBorrower(address _borrower) external onlyAdmin {
 		require(_borrower != address(0), "!_borrower");
 		borrower = _borrower;
+		emit BorrowerChanged(borrower);
 	}
 
 	/**
