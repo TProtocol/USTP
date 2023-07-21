@@ -21,4 +21,8 @@ contract ERC20Token is Ownable, ERC20 {
 		_mint(to, value);
 		return true;
 	}
+
+	function decimals() public view override returns (uint8) {
+		return _decimals;
+	}
 }
