@@ -351,6 +351,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	 */
 	function repayAll() external whenNotPaused realizeInterest {
 		uint256 userBorrowShares = borrowedShares[msg.sender];
+		require(userBorrowShares > 0, "Repay USDC should more then 0.");
 
 		uint256 repayrUSTP = getrUSTPAmountByShares(userBorrowShares);
 		// convert to USDC.
