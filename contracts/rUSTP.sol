@@ -269,14 +269,14 @@ abstract contract rUSTP is ERC20 {
 		uint256 accountShares = shares[_account];
 		require(_sharesAmount <= accountShares, "BALANCE_EXCEEDED");
 
-		uint256 preRebaseTokenAmount = getSharesByrUSTPAmount(_sharesAmount);
+		uint256 preRebaseTokenAmount = getrUSTPAmountByShares(_sharesAmount);
 
 		newTotalShares = _getTotalShares().sub(_sharesAmount);
 		totalShares = newTotalShares;
 
 		shares[_account] = accountShares.sub(_sharesAmount);
 
-		uint256 postRebaseTokenAmount = getSharesByrUSTPAmount(_sharesAmount);
+		uint256 postRebaseTokenAmount = getrUSTPAmountByShares(_sharesAmount);
 
 		emit SharesBurnt(_account, preRebaseTokenAmount, postRebaseTokenAmount, _sharesAmount);
 
