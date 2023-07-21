@@ -208,7 +208,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	 *
 	 * @param _amount the amount of USDC
 	 */
-	function supplyUSDC(uint256 _amount) external realizeInterest whenNotPaused {
+	function supplyUSDC(uint256 _amount) external whenNotPaused realizeInterest {
 		require(_amount > 0, "Supply USDC should more then 0.");
 		usdc.transferFrom(msg.sender, address(this), _amount);
 
