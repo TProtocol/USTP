@@ -46,7 +46,7 @@ contract USTP is ERC20, AccessControl {
 	/**
 	 * @dev wrap all iUSTP to rUSTP
 	 */
-	function unwarpAll() external {
+	function unWrapAll() external {
 		uint256 userBalance = balanceOf(msg.sender);
 		require(userBalance > 0, "can't wrap zero iUSTP");
 		_burn(msg.sender, userBalance);
@@ -70,7 +70,7 @@ contract USTP is ERC20, AccessControl {
 	}
 
 	/**
-	 * @dev Allows to recovery rUSTP
+	 * @dev Allows to claim rUSTP
 	 * @param target Address for receive token
 	 */
 	function claimUSTP(address target) external onlyRole(DEFAULT_ADMIN_ROLE) {

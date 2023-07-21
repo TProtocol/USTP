@@ -332,17 +332,17 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 
 		_repay(borrower, repayShares);
 
-		uint256 lqiuidateAmount = repayAmount.mul(1e18).div(_wstbtPrice());
+		uint256 liquidateAmount = repayAmount.mul(1e18).div(_wstbtPrice());
 		// TODO maybe no need to check.
 		require(
-			depositedAmountWSTBT[borrower] >= lqiuidateAmount,
-			"lqiuidateAmount should be less than borrower's deposit."
+			depositedAmountWSTBT[borrower] >= liquidateAmount,
+			"liquidateAmount should be less than borrower's deposit."
 		);
-		totalDepositedBalancesWSTBT -= lqiuidateAmount;
-		depositedAmountWSTBT[borrower] -= lqiuidateAmount;
+		totalDepositedBalancesWSTBT -= liquidateAmount;
+		depositedAmountWSTBT[borrower] -= liquidateAmount;
 
 		wstbt.transfer(address(liquidatePool), repayAmount);
-		liquidatePool.liquidateWSTBT(msg.sender, lqiuidateAmount);
+		liquidatePool.liquidateWSTBT(msg.sender, liquidateAmount);
 
 		emit LiquidationRecord(msg.sender, borrower, repayAmount, block.timestamp);
 	}
@@ -373,14 +373,14 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 
 		_repay(borrower, repayShares);
 
-		uint256 lqiuidateAmount = repayAmount.mul(1e18).div(_wstbtPrice());
+		uint256 liquidateAmount = repayAmount.mul(1e18).div(_wstbtPrice());
 		// TODO maybe no need to check.
 		require(
-			depositedAmountWSTBT[borrower] >= lqiuidateAmount,
-			"lqiuidateAmount should be less than borrower's deposit."
+			depositedAmountWSTBT[borrower] >= liquidateAmount,
+			"liquidateAmount should be less than borrower's deposit."
 		);
-		totalDepositedBalancesWSTBT -= lqiuidateAmount;
-		depositedAmountWSTBT[borrower] -= lqiuidateAmount;
+		totalDepositedBalancesWSTBT -= liquidateAmount;
+		depositedAmountWSTBT[borrower] -= liquidateAmount;
 
 		wstbt.transfer(address(liquidatePool), repayAmount);
 		liquidatePool.flashLiquidateWSTBTByCurve(repayAmount, j, minReturn, msg.sender);

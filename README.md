@@ -8,7 +8,7 @@
     
     > It's a rebasing token.
 * iUSTP
-    > A non-rebasing ustp, warp from rUSTP.
+    > A non-rebasing ustp, wrap from rUSTP.
     
     > The token price will increase with interest.
 * USTP

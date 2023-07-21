@@ -384,14 +384,14 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		_repay(borrower, repayShares);
 
 		// always assuming STBT:rUSTP is 1:1.
-		uint256 lqiuidateShares = stbt.getSharesByAmount(repayAmount);
+		uint256 liquidateShares = stbt.getSharesByAmount(repayAmount);
 		// TODO maybe no need to check.
 		require(
-			depositedSharesSTBT[borrower] >= lqiuidateShares,
-			"lqiuidateShares should be less than borrower's deposit."
+			depositedSharesSTBT[borrower] >= liquidateShares,
+			"liquidateShares should be less than borrower's deposit."
 		);
-		totalDepositedSharesSTBT -= lqiuidateShares;
-		depositedSharesSTBT[borrower] -= lqiuidateShares;
+		totalDepositedSharesSTBT -= liquidateShares;
+		depositedSharesSTBT[borrower] -= liquidateShares;
 
 		stbt.transfer(address(liquidatePool), repayAmount);
 		liquidatePool.liquidateSTBT(msg.sender, repayAmount);
@@ -426,14 +426,14 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		_repay(borrower, repayShares);
 
 		// always assuming STBT:rUSTP is 1:1.
-		uint256 lqiuidateShares = stbt.getSharesByAmount(repayAmount);
+		uint256 liquidateShares = stbt.getSharesByAmount(repayAmount);
 		// TODO maybe no need to check.
 		require(
-			depositedSharesSTBT[borrower] >= lqiuidateShares,
-			"lqiuidateShares should be less than borrower's deposit."
+			depositedSharesSTBT[borrower] >= liquidateShares,
+			"liquidateShares should be less than borrower's deposit."
 		);
-		totalDepositedSharesSTBT -= lqiuidateShares;
-		depositedSharesSTBT[borrower] -= lqiuidateShares;
+		totalDepositedSharesSTBT -= liquidateShares;
+		depositedSharesSTBT[borrower] -= liquidateShares;
 
 		stbt.transfer(address(liquidatePool), repayAmount);
 		liquidatePool.flashLiquidateSTBTByCurve(repayAmount, j, minReturn, msg.sender);

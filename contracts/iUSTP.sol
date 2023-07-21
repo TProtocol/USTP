@@ -27,24 +27,24 @@ contract iUSTP is ERC20, AccessControl {
 	}
 
 	/**
-	 * @dev warp rUSTP to iUSTP
+	 * @dev wrap rUSTP to iUSTP
 	 * @param _amount the amount of rUSTP
 	 */
-	function warp(uint256 _amount) external {
+	function wrap(uint256 _amount) external {
 		// equal shares
 		uint256 depositShares = IrUSTP(address(rUSTP)).getSharesByrUSTPAmount(_amount);
-		require(depositShares > 0, "can't warp zero rUSTP");
+		require(depositShares > 0, "can't wrap zero rUSTP");
 		rUSTP.safeTransferFrom(msg.sender, address(this), _amount);
 		_mint(msg.sender, depositShares);
 	}
 
 	/**
-	 * @dev unwarp iUSTP to rUSTP
+	 * @dev unwrap iUSTP to rUSTP
 	 * @param _share the share of iUSTP
 	 */
-	function unwarp(uint256 _share) external {
+	function unwrap(uint256 _share) external {
 		uint256 withdrawAmount = IrUSTP(address(rUSTP)).getrUSTPAmountByShares(_share);
-		require(withdrawAmount > 0, "can't unwarp zero rUSTP");
+		require(withdrawAmount > 0, "can't unwrap zero rUSTP");
 		_burn(msg.sender, _share);
 		rUSTP.safeTransfer(msg.sender, withdrawAmount);
 	}
@@ -52,7 +52,7 @@ contract iUSTP is ERC20, AccessControl {
 	/**
 	 * @dev wrap all iUSTP to rUSTP
 	 */
-	function unwarpAll() external {
+	function unWrapAll() external {
 		uint256 userBalance = balanceOf(msg.sender);
 		uint256 withdrawAmount = IrUSTP(address(rUSTP)).getrUSTPAmountByShares(userBalance);
 		require(withdrawAmount > 0, "can't wrap zero iUSTP");
@@ -77,7 +77,7 @@ contract iUSTP is ERC20, AccessControl {
 	}
 
 	/**
-	 * @dev Allows to recovery rUSTP
+	 * @dev Allows to recovery of rUSTP
 	 * @param target Address for receive token
 	 */
 	function recoverUSTP(address target) external onlyRole(DEFAULT_ADMIN_ROLE) {

@@ -99,41 +99,41 @@ describe("iUSTP", function () {
 		await rustpool.connect(stbtInvestor).borrowUSDC(amountToBorrowUSDC)
 	})
 
-	describe("Warp iUSTP", function () {
-		it("Should be able to warp", async function () {
+	describe("Wrap iUSTP", function () {
+		it("Should be able to wrap", async function () {
 			await rustpool.connect(usdcInvestor).approve(iUSTPtoken.address, amountToSupplyrUSTP)
 			const supplyShares = await rustpool.connect(usdcInvestor).sharesOf(usdcInvestor.address)
 
-			await iUSTPtoken.connect(usdcInvestor).warp(amountToSupplyrUSTP)
+			await iUSTPtoken.connect(usdcInvestor).wrap(amountToSupplyrUSTP)
 
 			expect(await iUSTPtoken.balanceOf(usdcInvestor.address)).to.be.equal(supplyShares)
 		})
 
-		it("Should fail if warp zero rUSTP", async function () {
-			await expect(iUSTPtoken.connect(stbtInvestor).warp(0)).to.be.revertedWith(
-				"can't warp zero rUSTP"
+		it("Should fail if wrap zero rUSTP", async function () {
+			await expect(iUSTPtoken.connect(stbtInvestor).wrap(0)).to.be.revertedWith(
+				"can't wrap zero rUSTP"
 			)
 		})
 	})
 
-	describe("Unwarp iUSTP", function () {
+	describe("Unwrap iUSTP", function () {
 		beforeEach(async () => {
 			await rustpool.connect(usdcInvestor).approve(iUSTPtoken.address, amountToSupplyrUSTP)
-			await iUSTPtoken.connect(usdcInvestor).warp(amountToSupplyrUSTP)
+			await iUSTPtoken.connect(usdcInvestor).wrap(amountToSupplyrUSTP)
 		})
-		it("Should be able to unwarp", async function () {
+		it("Should be able to unwrap", async function () {
 			const beforeShares = await rustpool.sharesOf(usdcInvestor.address)
-			const unwarpAmount = await iUSTPtoken.balanceOf(usdcInvestor.address)
-			await iUSTPtoken.connect(usdcInvestor).unwarp(unwarpAmount)
+			const unwrapAmount = await iUSTPtoken.balanceOf(usdcInvestor.address)
+			await iUSTPtoken.connect(usdcInvestor).unwrap(unwrapAmount)
 
 			expect(await rustpool.sharesOf(usdcInvestor.address)).to.be.equal(
-				beforeShares.add(unwarpAmount)
+				beforeShares.add(unwrapAmount)
 			)
 		})
 
-		it("Should fail if unwarp zero rUSTP", async function () {
-			await expect(iUSTPtoken.connect(stbtInvestor).unwarp(0)).to.be.revertedWith(
-				"can't unwarp zero rUSTP"
+		it("Should fail if unwrap zero rUSTP", async function () {
+			await expect(iUSTPtoken.connect(stbtInvestor).unwrap(0)).to.be.revertedWith(
+				"can't unwrap zero rUSTP"
 			)
 		})
 	})
@@ -141,7 +141,7 @@ describe("iUSTP", function () {
 	describe("Token Price", function () {
 		beforeEach(async () => {
 			await rustpool.connect(usdcInvestor).approve(iUSTPtoken.address, amountToSupplyrUSTP)
-			await iUSTPtoken.connect(usdcInvestor).warp(amountToSupplyrUSTP)
+			await iUSTPtoken.connect(usdcInvestor).wrap(amountToSupplyrUSTP)
 		})
 		it("Token price should be increase", async function () {
 			await rustpool.connect(admin).setReserveFactor(0)
