@@ -267,7 +267,7 @@ contract LiquidatePool {
 		emit liquidateRequested(
 			liquidationIndex,
 			block.timestamp,
-			msg.sender,
+			caller,
 			stbtAmount,
 			underlyingAmount,
 			amountAfterFee,
