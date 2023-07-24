@@ -14,11 +14,15 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 	await daiToken.deployed()
 	await usdcToken.deployed()
 	await usdtToken.deployed()
-	let stbtToken = await ERC20Token.connect(deployer).deploy("STBT", "STBT", 18)
+	const STBTToken = await ethers.getContractFactory("STBT")
+	let stbtToken = await STBTToken.connect(deployer).deploy()
 	await stbtToken.deployed()
+	await stbtToken.connect(deployer).setIssuer(deployer.address)
+	await stbtToken.connect(deployer).setController(deployer.address)
+	await stbtToken.connect(deployer).setModerator(deployer.address)
 	await stbtToken
 		.connect(deployer)
-		.mint(deployer.address, ethers.utils.parseUnits("1000000000", 18)) // 1 billion STBT
+		.issue(deployer.address, ethers.utils.parseUnits("1000000000", 18), []) // 1 billion STBT
 
 	const coins = [daiToken, usdcToken, usdtToken]
 
@@ -87,13 +91,13 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 		.connect(deployer)
 		.approve(stbtSwapPool.address, ethers.utils.parseUnits("1000000000", 18))
 
-	await stbtSwapPool.connect(deployer)["add_liquidity(uint256[2],uint256)"](
-		[
-			ethers.utils.parseUnits("1000000", 18), // 1M stbt
-			ethers.utils.parseUnits("1000000", 18), // 1M 3Crv
-		],
-		0
-	)
+	// await stbtSwapPool.connect(deployer)["add_liquidity(uint256[2],uint256)"](
+	// 	[
+	// 		ethers.utils.parseUnits("1000000", 18), // 1M stbt
+	// 		ethers.utils.parseUnits("1000000", 18), // 1M 3Crv
+	// 	],
+	// 	0
+	// )
 	const PriceFeed = await ethers.getContractFactory("MockPriceFeed")
 	let priceFeed = await PriceFeed.connect(deployer).deploy()
 	await priceFeed.deployed()
@@ -132,6 +136,13 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 	await rustpool.connect(deployer).initLiquidatePool(liquidatePool.address)
 	await rustpool.connect(deployer).setInterestRateModel(interestRateModel.address)
 	await liquidatePool.connect(deployer).setFeeCollector(deployer.address)
+
+	console.log("liquidatePool", liquidatePool.address)
+	console.log("rustpool", rustpool.address)
+	console.log("interestRateModel", interestRateModel.address)
+	console.log("priceFeed", priceFeed.address)
+	console.log("usdcToken", usdcToken.address)
+	console.log("stbtToken", stbtToken.address)
 }
 
 module.exports.tags = ["CruvePool", "testnet"]
