@@ -73,6 +73,8 @@ describe("rUSTPool", function () {
 
 		await liquidatePool.connect(admin).setCurvePool(stbtSwapPool.address)
 		await liquidatePool.connect(admin).setRedeemPool(mxpRedeemPool.address)
+		// must be less than 1.005 USD
+		await liquidatePool.connect(admin).setPegPrice(100500000)
 		await rustpool.connect(admin).initLiquidatePool(liquidatePool.address)
 		await rustpool.connect(admin).setInterestRateModel(interestRateModel.address)
 
@@ -470,7 +472,7 @@ describe("rUSTPool", function () {
 		})
 
 		it(`Should be able to finalizeLiquidationById when the proccess not done yet.`, async () => {
-			await liquidatePool.connect(admin).setProcessPeriod(ONE_MONTH)
+			await liquidatePool.connect(admin).setProcessPeriod(ONE_WEEK)
 			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
 			await rustpool
 				.connect(usdcInvestor)
@@ -497,7 +499,7 @@ describe("rUSTPool", function () {
 				rustpool
 					.connect(stbtInvestor)
 					.liquidateBorrow(stbtInvestor.address, liquidateSTBT.add(100))
-			).to.be.revertedWith("don't liquidate self")
+			).to.be.revertedWith("don't liquidate self.")
 		})
 
 		it("Should be not able to more than borrower's debt.", async () => {
@@ -509,6 +511,13 @@ describe("rUSTPool", function () {
 					.connect(usdcInvestor)
 					.liquidateBorrow(stbtInvestor.address, liquidateSTBT.mul(2))
 			).to.be.revertedWith("repayAmount should be less than borrower's debt.")
+		})
+	})
+	describe("Set process period", function () {
+		it("Should be not able to set _processPeriod over 7 days", async () => {
+			await expect(
+				liquidatePool.connect(admin).setProcessPeriod(ONE_WEEK + 1)
+			).to.be.revertedWith("should be less than 7 days")
 		})
 	})
 

@@ -251,7 +251,7 @@ contract LiquidatePool {
 			return false;
 		}
 		// Check for non-positive price
-		if (answer <= 0) {
+		if (answer < 0) {
 			return false;
 		}
 		// depeg
