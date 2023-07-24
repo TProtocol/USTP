@@ -133,6 +133,7 @@ contract LiquidatePool {
 	 * @param _processPeriod the period of processing. it's second.
 	 */
 	function setProcessPeriod(uint256 _processPeriod) external onlyAdmin {
+		require(_processPeriod <= 7 days, "should be more than 7 days");
 		processPeriod = _processPeriod;
 		emit ProcessPeriodChanged(processPeriod);
 	}
