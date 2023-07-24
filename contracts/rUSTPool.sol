@@ -3,6 +3,7 @@ pragma solidity 0.8.18;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
@@ -13,6 +14,7 @@ import "./interfaces/IMigrator.sol";
 import "./rUSTP.sol";
 
 contract rUSTPool is rUSTP, AccessControl, Pausable {
+	using SafeERC20 for IERC20;
 	using SafeMath for uint256;
 
 	bytes32 public constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
@@ -320,7 +322,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		);
 		_requireIsSafeCollateralRate(msg.sender);
 
-		usdc.transfer(msg.sender, _amount);
+		usdc.safeTransfer(msg.sender, _amount);
 
 		emit BorrowUSDC(msg.sender, _amount, borrowShares, block.timestamp);
 	}
