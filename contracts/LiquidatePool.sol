@@ -226,9 +226,40 @@ contract LiquidatePool {
 	}
 
 	/// @notice get price feed answer
-	/// @return The answer of price from priceFeed
-	function latestAnswer() public view returns (int256) {
-		return priceFeed.latestAnswer();
+	function latestRoundData()
+		public
+		view
+		returns (
+			uint80 roundId,
+			int256 answer,
+			uint256 startedAt,
+			uint256 updatedAt,
+			uint80 answeredInRound
+		)
+	{
+		return priceFeed.latestRoundData();
+	}
+
+	function _checkChainlinkResponse() internal view returns (bool) {
+		(uint80 roundId, int256 answer, , uint256 updatedAt, ) = priceFeed.latestRoundData();
+		// Check for an invalid roundId that is 0
+		if (roundId == 0) {
+			return false;
+		}
+		// Check for an invalid timeStamp that is 0, or in the future
+		if (updatedAt == 0 || updatedAt > block.timestamp) {
+			return false;
+		}
+		// Check for non-positive price
+		if (answer <= 0) {
+			return false;
+		}
+		// depeg
+		if (answer >= targetPrice) {
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
@@ -238,7 +269,7 @@ contract LiquidatePool {
 	 */
 	function liquidateSTBT(address caller, uint256 stbtAmount) external {
 		require(msg.sender == ustpool, "unauthorized");
-		require(priceFeed.latestAnswer() >= targetPrice, "depeg");
+		require(_checkChainlinkResponse(), "depeg");
 		require(stbtAmount >= redeemThreshold, "less than redeemThreshold.");
 		stbt.safeTransfer(mxpRedeemPool, stbtAmount);
 
@@ -322,15 +353,15 @@ contract LiquidatePool {
 			"Not done yet."
 		);
 
-		uint256 redeemAmountAfterFee = liquidationDetails[_id].receiveAmountAfterFee;
+		uint256 receiveAmountAfterFee = liquidationDetails[_id].receiveAmountAfterFee;
 		uint256 protocolFee = liquidationDetails[_id].protocolFee;
 
 		liquidationDetails[_id].isDone = true;
 
 		// the MXP fee had been charge.
-		usdc.transfer(msg.sender, redeemAmountAfterFee);
-		usdc.transfer(feeCollector, protocolFee);
+		usdc.safeTransfer(msg.sender, receiveAmountAfterFee);
+		usdc.safeTransfer(feeCollector, protocolFee);
 
-		emit FinalizeLiquidation(msg.sender, redeemAmountAfterFee, protocolFee, _id);
+		emit FinalizeLiquidation(msg.sender, receiveAmountAfterFee, protocolFee, _id);
 	}
 }
