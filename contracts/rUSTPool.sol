@@ -282,6 +282,25 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	}
 
 	/**
+	 * @notice Withdraw all STBT to an address.
+	 * Emits a `WithdrawSTBT` event.
+	 *
+	 */
+	function withdrawAllSTBT() external whenNotPaused realizeInterest {
+		uint256 withdrawShares = depositedSharesSTBT[msg.sender];
+		require(withdrawShares > 0, "Withdraw STBT should more then 0.");
+		uint256 _amount = stbt.getAmountByShares(withdrawShares);
+
+		totalDepositedSharesSTBT -= withdrawShares;
+		depositedSharesSTBT[msg.sender] = 0;
+
+		_requireIsSafeCollateralRate(msg.sender);
+		stbt.transfer(msg.sender, _amount);
+
+		emit WithdrawSTBT(msg.sender, _amount, withdrawShares, block.timestamp);
+	}
+
+	/**
 	 * @notice Withdraw USDC to an address.
 	 * rUSTP:USDC always 1:1.
 	 * Emits a `WithdrawUSDC` event.
@@ -298,6 +317,28 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		usdc.transfer(msg.sender, _amount);
 
 		emit WithdrawUSDC(msg.sender, _amount, block.timestamp);
+	}
+
+	/**
+	 * @notice Withdraw all USDC to an address.
+	 * rUSTP:USDC always 1:1.
+	 * Emits a `WithdrawUSDC` event.
+	 *
+	 */
+	function withdrawAllUSDC() external whenNotPaused realizeInterest {
+		uint256 _amount = _sharesOf(msg.sender);
+		require(_amount > 0, "Withdraw USDC should more then 0.");
+
+		// convert to USDC.
+		uint256 convertToUSDC = _amount.div(10 ** 12);
+
+		_burnrUSTP(msg.sender, _amount);
+
+		if (convertToUSDC > 0) {
+			usdc.transfer(msg.sender, convertToUSDC);
+		}
+
+		emit WithdrawUSDC(msg.sender, convertToUSDC, block.timestamp);
 	}
 
 	/**

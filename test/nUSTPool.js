@@ -74,7 +74,7 @@ describe("rUSTPool", function () {
 		await liquidatePool.connect(admin).setCurvePool(stbtSwapPool.address)
 		await liquidatePool.connect(admin).setRedeemPool(mxpRedeemPool.address)
 		// must be less than 1.005 USD
-		await liquidatePool.connect(admin).setPegPrice(100500000)
+		await liquidatePool.connect(admin).setPegPrice(99500000, 100500000)
 		await rustpool.connect(admin).initLiquidatePool(liquidatePool.address)
 		await rustpool.connect(admin).setInterestRateModel(interestRateModel.address)
 
@@ -150,6 +150,18 @@ describe("rUSTPool", function () {
 				expect(usdcAmountAfter).to.be.equal(rustpAmount.div(1e12).add(usdcAmountBefore))
 			})
 
+			it("Should be able to withdraw all usdc", async function () {
+				const usdcAmountBefore = await usdcToken.balanceOf(usdcInvestor.address)
+
+				const rustpAmount = await rustpool.balanceOf(usdcInvestor.address)
+				await rustpool.connect(usdcInvestor).withdrawAllUSDC()
+
+				const usdcAmountAfter = await usdcToken.balanceOf(usdcInvestor.address)
+
+				expect(await rustpool.balanceOf(usdcInvestor.address)).to.be.equal(0)
+				expect(usdcAmountAfter).to.be.equal(rustpAmount.div(1e12).add(usdcAmountBefore))
+			})
+
 			it("Should fail if withdraw zero USDC", async function () {
 				await expect(rustpool.connect(usdcInvestor).withdrawUSDC(0)).to.be.revertedWith(
 					"Withdraw USDC should more then 0."
@@ -166,6 +178,16 @@ describe("rUSTPool", function () {
 			it("Should be able to withdraw", async function () {
 				const stbtAmountBefore = await stbtToken.balanceOf(stbtInvestor.address)
 				await rustpool.connect(stbtInvestor).withdrawSTBT(amountToSupplySTBT)
+
+				const stbtAmountAfter = await stbtToken.balanceOf(stbtInvestor.address)
+
+				expect(await rustpool.depositedSharesSTBT(stbtInvestor.address)).to.be.equal(0)
+				expect(stbtAmountAfter).to.be.equal(amountToSupplySTBT.add(stbtAmountBefore))
+			})
+
+			it("Should be able to withdraw all stbt", async function () {
+				const stbtAmountBefore = await stbtToken.balanceOf(stbtInvestor.address)
+				await rustpool.connect(stbtInvestor).withdrawAllSTBT()
 
 				const stbtAmountAfter = await stbtToken.balanceOf(stbtInvestor.address)
 

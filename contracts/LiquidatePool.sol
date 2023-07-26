@@ -65,7 +65,8 @@ contract LiquidatePool {
 	// redeem threshold for STBT
 	uint256 public redeemThreshold;
 	// target price
-	int256 public targetPrice;
+	int256 public lowerPrice;
+	int256 public upperPrice;
 	// priceFeed be using check USDC is pegged
 	AggregatorInterface public priceFeed;
 	// coins , [DAI, USDC, USDT]
@@ -96,7 +97,7 @@ contract LiquidatePool {
 	event RedeemPoolChanged(address newRedeemPool);
 	event CurvePoolChanged(address newCurvePool);
 	event RedeemThresholdChanged(uint256 newRedeemThreshold);
-	event PegPriceChanged(int256 newPegPrice);
+	event PegPriceChanged(int256 lowerPrice, int256 upperPrice);
 
 	constructor(
 		address _admin,
@@ -205,11 +206,13 @@ contract LiquidatePool {
 
 	/**
 	 * @dev to set the price
-	 * @param _targetPrice the target price of usdc
+	 * @param _lowerPrice the lower price of usdc
+	 * @param _upperPrice the upper price of usdc
 	 */
-	function setPegPrice(int256 _targetPrice) external onlyAdmin {
-		targetPrice = _targetPrice;
-		emit PegPriceChanged(targetPrice);
+	function setPegPrice(int256 _lowerPrice, int256 _upperPrice) external onlyAdmin {
+		lowerPrice = _lowerPrice;
+		upperPrice = _upperPrice;
+		emit PegPriceChanged(lowerPrice, upperPrice);
 	}
 
 	/**
@@ -250,12 +253,8 @@ contract LiquidatePool {
 		if (updatedAt == 0 || updatedAt > block.timestamp) {
 			return false;
 		}
-		// Check for non-positive price
-		if (answer < 0) {
-			return false;
-		}
 		// depeg
-		if (answer >= targetPrice) {
+		if (answer < lowerPrice || answer > upperPrice) {
 			return false;
 		}
 
