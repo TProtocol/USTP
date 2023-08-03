@@ -234,6 +234,19 @@ async function deployUSTPFixture(admin, deployer, rUSTP) {
 	return { USTPtoken }
 }
 
+async function deployUSTPHelperFixture(deployer, rUSTP, iUSTP, ustp, usdctoken) {
+	const USTPHelperFactory = await ethers.getContractFactory("USTPHelper")
+	let USTPHelper = await USTPHelperFactory.connect(deployer).deploy(
+		rUSTP.address,
+		iUSTP.address,
+		ustp.address,
+		usdctoken.address,
+		deployer.address
+	)
+	await USTPHelper.deployed()
+	return { USTPHelper }
+}
+
 module.exports = {
 	deployTokensFixture,
 	deployCurvePoolFixture,
@@ -247,4 +260,5 @@ module.exports = {
 	deployMockTreasury,
 	deployMockwTBT,
 	deployMigrator,
+	deployUSTPHelperFixture,
 }

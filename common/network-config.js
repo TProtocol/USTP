@@ -37,6 +37,7 @@ const SepoliaAddressConfig = {
 
 	// Mock
 	PriceFeedAddress: "0xa326A5e3febcA76E3dA66cB90aaC75BBcaD03949",
+	rUSTPAddess: "0x99a23821f7f9B7Ca003573797050562C13138F86",
 }
 
 const AddressConfig = {
