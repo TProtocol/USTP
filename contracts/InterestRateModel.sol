@@ -40,6 +40,8 @@ contract InterestRateModel is AccessControl {
 	) public view returns (uint) {
 		if (totalBorrow == 0) {
 			return 0;
+		} else if (totalBorrow >= totalSupply) {
+			return APR;
 		}
 		return ((totalBorrow * APR) / totalSupply);
 	}

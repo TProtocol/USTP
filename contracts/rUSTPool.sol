@@ -640,10 +640,9 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 			_totalSupplyrUSTP,
 			getrUSTPAmountByShares(totalBorrowShares)
 		);
-		require(
-			supplyInterestRate <= maxInterestRate,
-			"interest rate should be less than maxInterestRate."
-		);
+		if (supplyInterestRate >= maxInterestRate) {
+			supplyInterestRate = maxInterestRate;
+		}
 		return supplyInterestRate.mul(_totalSupplyrUSTP).div(365 days).div(APR_COEFFICIENT);
 	}
 }
