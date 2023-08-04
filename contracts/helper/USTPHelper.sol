@@ -94,6 +94,47 @@ contract USTPHelper is AccessControl {
 	}
 
 	/**
+	 * @dev Wrap iUSTP to USTP
+	 * @param amount the amout of iUSTP
+	 */
+	function wrapiUSTPToUSTP(uint256 amount) external {
+		address user = msg.sender;
+		uint256 beforerUSTP = IERC20(rustp).balanceOf(address(this));
+		IERC20(iustp).safeTransferFrom(user, address(this), amount);
+		IiUSTP(iustp).unwrap(amount);
+		uint256 afterrUSTP = IERC20(rustp).balanceOf(address(this));
+
+		uint256 userrUSTPAmount = afterrUSTP.sub(beforerUSTP);
+
+		IERC20(rustp).approve(ustp, userrUSTPAmount);
+		uint256 beforeUSTP = IERC20(ustp).balanceOf(address(this));
+		IUSTP(ustp).deposit(userrUSTPAmount);
+
+		uint256 afterUSTP = IERC20(ustp).balanceOf(address(this));
+		IERC20(ustp).safeTransfer(msg.sender, afterUSTP.sub(beforeUSTP));
+	}
+
+	/**
+	 * @dev Wrap USTP to iUSTP
+	 * @param amount the amout of USTP
+	 */
+	function wrapUSTPToiUSTP(uint256 amount) external {
+		address user = msg.sender;
+		uint256 beforerUSTP = IERC20(rustp).balanceOf(address(this));
+		IERC20(ustp).safeTransferFrom(user, address(this), amount);
+		IUSTP(ustp).withdraw(amount);
+		uint256 afterrUSTP = IERC20(rustp).balanceOf(address(this));
+		uint256 userrUSTPAmount = afterrUSTP.sub(beforerUSTP);
+
+		IERC20(rustp).approve(iustp, userrUSTPAmount);
+
+		uint256 beforeIUSTP = IERC20(iustp).balanceOf(address(this));
+		IiUSTP(iustp).wrap(userrUSTPAmount);
+		uint256 afterIUSTP = IERC20(iustp).balanceOf(address(this));
+		IERC20(iustp).safeTransfer(msg.sender, afterIUSTP.sub(beforeIUSTP));
+	}
+
+	/**
 	 * @dev Allows to recover any ERC20 token
 	 * @param recover Using to receive recovery of fund
 	 * @param tokenAddress Address of the token to recover

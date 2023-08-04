@@ -30,14 +30,16 @@ const MainnetAddressConfig = {
 const SepoliaAddressConfig = {
 	adminAddress: adminAddress,
 	mpRedeemPoolAddress: "0xDEE9Ed3B19d104ADBbE255B6bEFC680b4eaAAda3",
-	stbtAddress: "0xD5e5B66513b8918155eC9E22C9780Ec51c2f806d",
+	stbtAddress: "0xd46b30eB86861dd5A159BF49b380762992054A9B",
 	daiAddress: "0xE307647A5cfA49d55d87552369c29a9f1a13ae8A",
-	usdcAddress: "0xc31dbBA1A491C5cF5c7B39AF63E61F782215FFaB",
+	usdcAddress: "0xf7B6d04C21dB982A47086953e677B26420D7d027",
 	usdtAddress: "0xc0B4247D396667D7457C78f5767F0a09dA556f2b",
 
 	// Mock
 	PriceFeedAddress: "0xa326A5e3febcA76E3dA66cB90aaC75BBcaD03949",
 	rUSTPAddess: "0x99a23821f7f9B7Ca003573797050562C13138F86",
+	iUSTPAddess: "0x85787f3663fb97f400B5bbAE4B56a03E3dEB0ef1",
+	USTPAddess: "0xa2ED99Eb60DbACDD6B6a85B5f7501974be14fB36",
 }
 
 const AddressConfig = {
@@ -52,6 +54,7 @@ const InterestRateModelId = "InterestRateModel"
 const LiquidatePoolId = "LiquidatePool"
 const iUSTPId = "iUSTP"
 const USTPId = "USTP"
+const USTPHelperId = "USTPHelper"
 
 const testnetId = {
 	dai: "DaiToken",
@@ -72,4 +75,5 @@ module.exports = {
 	iUSTPId,
 	USTPId,
 	testnetId,
+	USTPHelperId,
 }

@@ -121,6 +121,15 @@ describe("USTPHelper", function () {
 			await USTPHelper.connect(usdcInvestor).mintiUSTP(amountToSupplyUSDC)
 			expect(await iUSTPtoken.balanceOf(usdcInvestor.address)).to.be.equal(amountUSTP)
 		})
+
+		it("Should be able to mint by USTP", async function () {
+			await USTPHelper.connect(usdcInvestor).mintUSTP(amountToSupplyUSDC)
+			expect(await USTPtoken.balanceOf(usdcInvestor.address)).to.be.equal(amountUSTP)
+
+			await USTPtoken.connect(usdcInvestor).approve(USTPHelper.address, amountUSTP)
+			await USTPHelper.connect(usdcInvestor).wrapUSTPToiUSTP(amountUSTP)
+			expect(await iUSTPtoken.balanceOf(usdcInvestor.address)).to.be.equal(amountUSTP)
+		})
 	})
 
 	describe("Mint USTP", function () {
@@ -129,6 +138,14 @@ describe("USTPHelper", function () {
 		})
 		it("Should be able to mint", async function () {
 			await USTPHelper.connect(usdcInvestor).mintUSTP(amountToSupplyUSDC)
+			expect(await USTPtoken.balanceOf(usdcInvestor.address)).to.be.equal(amountUSTP)
+		})
+		it("Should be able to mint by iUSTP", async function () {
+			await USTPHelper.connect(usdcInvestor).mintiUSTP(amountToSupplyUSDC)
+			expect(await iUSTPtoken.balanceOf(usdcInvestor.address)).to.be.equal(amountUSTP)
+
+			await iUSTPtoken.connect(usdcInvestor).approve(USTPHelper.address, amountUSTP)
+			await USTPHelper.connect(usdcInvestor).wrapiUSTPToUSTP(amountUSTP)
 			expect(await USTPtoken.balanceOf(usdcInvestor.address)).to.be.equal(amountUSTP)
 		})
 	})
