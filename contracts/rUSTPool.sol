@@ -40,6 +40,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	mapping(address => uint256) borrowedShares;
 	uint256 public totalBorrowShares;
 
+	mapping(address => bool) liquidateProvider;
 	// Used to be a flash liquidate provider
 	mapping(address => bool) flashLiquidateProvider;
 	mapping(address => bool) pendingFlashLiquidateProvider;
@@ -82,6 +83,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 
 	// 0 is not, 1 is pending, 2 is a provider.
 	event FlashLiquidateProvider(address user, uint8 status);
+	event NewLiquidateProvider(address user, bool status);
 
 	constructor(
 		address admin,
@@ -417,6 +419,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		address borrower,
 		uint256 repayAmount
 	) external whenNotPaused realizeInterest {
+		require(liquidateProvider[borrower], "borrower is not a provider.");
 		_liquidateProcedure(borrower, repayAmount);
 		liquidatePool.liquidateSTBT(msg.sender, repayAmount);
 
@@ -494,6 +497,14 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		pendingFlashLiquidateProvider[user] = false;
 		flashLiquidateProvider[user] = true;
 		emit FlashLiquidateProvider(user, 2);
+	}
+
+	/**
+	 * @notice Admin add a provider
+	 */
+	function setLiquidateProvider(address user, bool status) external onlyRole(POOL_MANAGER_ROLE) {
+		liquidateProvider[user] = status;
+		emit NewLiquidateProvider(user, status);
 	}
 
 	/**
