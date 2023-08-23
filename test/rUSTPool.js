@@ -355,10 +355,10 @@ describe("rUSTPool", function () {
 
 				const rustpAmount = await rustpool.balanceOf(usdcInvestor.address)
 
-				// ~= 4.2% apr
+				// ~= 5.2% apr
 				expect(rustpAmount.div(1e12)).to.be.within(
-					amountToSupplyUSDC.mul(10410).div(10000),
-					amountToSupplyUSDC.mul(10430).div(10000)
+					amountToSupplyUSDC.mul(10510).div(10000),
+					amountToSupplyUSDC.mul(10530).div(10000)
 				)
 			})
 			it("Should be able to half interest when 50% utilization rate", async function () {
@@ -374,8 +374,8 @@ describe("rUSTPool", function () {
 
 				// ~= 2.1% apr
 				expect(rustpAmount.div(1e12)).to.be.within(
-					amountToSupplyUSDC.mul(10205).div(10000),
-					amountToSupplyUSDC.mul(10215).div(10000)
+					amountToSupplyUSDC.mul(10255).div(10000),
+					amountToSupplyUSDC.mul(10265).div(10000)
 				)
 			})
 
@@ -402,6 +402,26 @@ describe("rUSTPool", function () {
 
 				expect(usdcAmountAfter).to.be.equal(rustpAmount.div(1e12).add(usdcAmountBefore))
 			})
+			it("Should be able to get reserve fee", async function () {
+				// set reserve 10%
+				await rustpool.connect(admin).setReserveFactor(1000000)
+				// borrow all usdc
+				await rustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
+				now = now + ONE_YEAR
+				await mineBlockWithTimestamp(ethers.provider, now)
+
+				// to realize interest
+				await rustpool.connect(admin).setReserveFactor(0)
+
+				await rustpool.connect(admin).claimReservesFee(feeCollector.address)
+				const feeBalance = await rustpool.balanceOf(feeCollector.address)
+				const rustpAmount = await rustpool.balanceOf(usdcInvestor.address)
+				// ~= 5.2% apr
+				expect(rustpAmount.add(feeBalance).div(1e12)).to.be.within(
+					amountToSupplyUSDC.mul(10510).div(10000),
+					amountToSupplyUSDC.mul(10530).div(10000)
+				)
+			})
 		})
 	})
 
@@ -418,6 +438,7 @@ describe("rUSTPool", function () {
 				.approve(rustpool.address, amountToSupplySTBT.mul(2))
 			await rustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT.mul(2))
 			await rustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
+			await rustpool.connect(admin).setLiquidateProvider(stbtInvestor.address, true)
 		})
 
 		it(`Should be able to liquidate for with zero fee`, async () => {

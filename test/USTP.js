@@ -155,10 +155,10 @@ describe("USTP", function () {
 			await USTPtoken.connect(admin).claimUSTP(admin.address)
 			const afterBalance = await rustpool.balanceOf(admin.address)
 			const claimAmount = afterBalance.sub(beforeBalance)
-			// ~ 4.2%
+			// ~ 5.2%
 			expect(claimAmount).to.be.within(
-				amountToSupplyrUSTP.mul(41).div(1000),
-				amountToSupplyrUSTP.mul(42).div(1000)
+				amountToSupplyrUSTP.mul(50).div(1000),
+				amountToSupplyrUSTP.mul(52).div(1000)
 			)
 		})
 	})
