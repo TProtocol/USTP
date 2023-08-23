@@ -10,8 +10,8 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
  *
  */
 contract InterestRateModel is AccessControl {
-	// Assuming the maximum is 4.2%
-	uint256 private APR = 42 * 1e5;
+	// Assuming the maximum is 5.2%
+	uint256 private APR = 52 * 1e5;
 
 	event APRChanged(uint256 newAPR);
 
