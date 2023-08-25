@@ -10,6 +10,7 @@ const {
 	deployLiquidatePoolFixture,
 	deployInterestRateModelFixture,
 	deploySTBTTokensFixture,
+	deployMockMinter,
 } = require("./common/allFixture")
 
 const ONE_HOUR = 3600
@@ -33,6 +34,7 @@ describe("rUSTPool", function () {
 	let rustpool, liquidatePool
 	let now
 	let tokens
+	let mockMinter
 
 	const permission = {
 		sendAllowed: true,
@@ -58,6 +60,7 @@ describe("rUSTPool", function () {
 			stbtToken
 		))
 		;({ priceFeed } = await deployMockPriceFeedFixture(deployer))
+		;({ mockMinter } = await deployMockMinter(deployer, stbtToken, mxpRedeemPool))
 		;({ rustpool } = await deployrUSTPoolFixture(admin, deployer, stbtToken, usdcToken))
 		;({ liquidatePool } = await deployLiquidatePoolFixture(
 			admin,
@@ -73,6 +76,7 @@ describe("rUSTPool", function () {
 
 		await liquidatePool.connect(admin).setCurvePool(stbtSwapPool.address)
 		await liquidatePool.connect(admin).setRedeemPool(mxpRedeemPool.address)
+		await liquidatePool.connect(admin).setSTBTMinter(mockMinter.address)
 		// must be less than 1.005 USD
 		await liquidatePool.connect(admin).setPegPrice(99500000, 100500000)
 		await rustpool.connect(admin).initLiquidatePool(liquidatePool.address)
@@ -439,6 +443,7 @@ describe("rUSTPool", function () {
 			await rustpool.connect(stbtInvestor).supplySTBT(amountToSupplySTBT.mul(2))
 			await rustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
 			await rustpool.connect(admin).setLiquidateProvider(stbtInvestor.address, true)
+			await liquidatePool.connect(admin).setRedemptionOption(true)
 		})
 
 		it(`Should be able to liquidate for with zero fee`, async () => {
@@ -453,6 +458,9 @@ describe("rUSTPool", function () {
 				liquidateSTBT.mul(99999).div(100000),
 				liquidateSTBT.mul(100001).div(100000)
 			)
+
+			const mxpBalance = await stbtToken.balanceOf(mxpRedeemPool.address)
+			expect(mxpBalance).to.be.equal(liquidateSTBT)
 
 			const liquidationIndex = await liquidatePool.liquidationIndex()
 			await usdcToken.connect(deployer).transfer(liquidatePool.address, amountToSupplyUSDC)
@@ -476,6 +484,9 @@ describe("rUSTPool", function () {
 				liquidateSTBT.mul(99999).div(100000),
 				liquidateSTBT.mul(100001).div(100000)
 			)
+
+			const mxpBalance = await stbtToken.balanceOf(mxpRedeemPool.address)
+			expect(mxpBalance).to.be.equal(liquidateSTBT)
 
 			const fee = amountToSupplyUSDC.mul(1000000).div(100000000)
 
@@ -514,7 +525,26 @@ describe("rUSTPool", function () {
 			).to.be.revertedWith("Not yours.")
 		})
 
-		it(`Should be able to finalizeLiquidationById when the proccess not done yet.`, async () => {
+		it(`Should be able to liquidate without otc`, async () => {
+			await liquidatePool.connect(admin).setRedemptionOption(false)
+			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
+			const beforeUSDPAmount = await rustpool.balanceOf(usdcInvestor.address)
+			await rustpool
+				.connect(usdcInvestor)
+				.liquidateBorrow(stbtInvestor.address, liquidateSTBT)
+			const afterUSDPAmount = await rustpool.balanceOf(usdcInvestor.address)
+
+			// There are some err in interest.
+			expect(beforeUSDPAmount.sub(afterUSDPAmount)).to.be.within(
+				liquidateSTBT.mul(99999).div(100000),
+				liquidateSTBT.mul(100001).div(100000)
+			)
+
+			const mxpBalance = await stbtToken.balanceOf(mxpRedeemPool.address)
+			expect(mxpBalance).to.be.equal(liquidateSTBT)
+		})
+
+		it(`Should be not able to finalizeLiquidationById when the proccess not done yet.`, async () => {
 			await liquidatePool.connect(admin).setProcessPeriod(ONE_WEEK)
 			const liquidateSTBT = amountToSupplyUSDC.mul(1e12)
 			await rustpool

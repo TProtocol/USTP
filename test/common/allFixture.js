@@ -22,6 +22,17 @@ async function deployMockTreasury(deployer, recovery) {
 	return { mockTreasury }
 }
 
+async function deployMockMinter(deployer, stbtToken, mxpRedeemPool) {
+	const MockMinter = await ethers.getContractFactory("MockMinter")
+	let mockMinter = await MockMinter.connect(deployer).deploy(
+		stbtToken.address,
+		mxpRedeemPool.address
+	)
+	await mockMinter.deployed()
+
+	return { mockMinter }
+}
+
 async function deployMigrator(deployer, rustpool, wtbt, treasury, stbt, borrower) {
 	const Migrator = await ethers.getContractFactory("migrator")
 	let migrator = await Migrator.connect(deployer).deploy(
@@ -261,4 +272,5 @@ module.exports = {
 	deployMockwTBT,
 	deployMigrator,
 	deployUSTPHelperFixture,
+	deployMockMinter,
 }

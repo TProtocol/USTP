@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "./interfaces/ICurve.sol";
 import "./interfaces/AggregatorInterface.sol";
+import "./interfaces/IMinter.sol";
 
 contract LiquidatePool {
 	using SafeERC20 for IERC20;
@@ -14,6 +15,7 @@ contract LiquidatePool {
 
 	// used to redeem stbt
 	address public mxpRedeemPool;
+	address public stbtMinter;
 
 	address public admin;
 	// ustpool
@@ -44,6 +46,9 @@ contract LiquidatePool {
 	uint256 public liquidationIndex;
 	// the time for liquidation.
 	uint256 public processPeriod;
+
+	// redemption option
+	bool public isOTC = false;
 
 	struct LiquidationDetail {
 		uint256 id;
@@ -95,9 +100,11 @@ contract LiquidatePool {
 	event LiquidateFeeRateChanged(uint256 newLiquidateFeeRate);
 	event RedeemMXPFeeRateChanged(uint256 newRedeemMXPFeeRate);
 	event RedeemPoolChanged(address newRedeemPool);
+	event RedeemMinterChanged(address newRedeemMinter);
 	event CurvePoolChanged(address newCurvePool);
 	event RedeemThresholdChanged(uint256 newRedeemThreshold);
 	event PegPriceChanged(int256 lowerPrice, int256 upperPrice);
+	event RedemptionOptionChanged(bool isOTC);
 
 	constructor(
 		address _admin,
@@ -163,6 +170,15 @@ contract LiquidatePool {
 	}
 
 	/**
+	 * @dev to set the redemption option
+	 * @param _isOTC option
+	 */
+	function setRedemptionOption(bool _isOTC) external onlyAdmin {
+		isOTC = _isOTC;
+		emit RedemptionOptionChanged(isOTC);
+	}
+
+	/**
 	 * @dev to set the rate of MP redeem fee
 	 * @param _liquidateMXPFeeRate the rate. it should be multiply 10**6
 	 */
@@ -183,6 +199,16 @@ contract LiquidatePool {
 		require(_redeemPool != address(0), "!_redeemPool");
 		mxpRedeemPool = _redeemPool;
 		emit RedeemPoolChanged(mxpRedeemPool);
+	}
+
+	/**
+	 * @dev to set the stbt minter
+	 * @param _stbtMinter the address of minter
+	 */
+	function setSTBTMinter(address _stbtMinter) external onlyAdmin {
+		require(_stbtMinter != address(0), "!_stbtMinter");
+		stbtMinter = _stbtMinter;
+		emit RedeemMinterChanged(stbtMinter);
 	}
 
 	/**
@@ -270,7 +296,13 @@ contract LiquidatePool {
 		require(msg.sender == ustpool, "unauthorized");
 		require(_checkChainlinkResponse(), "depeg");
 		require(stbtAmount >= redeemThreshold, "less than redeemThreshold.");
-		stbt.safeTransfer(mxpRedeemPool, stbtAmount);
+		if (isOTC) {
+			stbt.safeTransfer(mxpRedeemPool, stbtAmount);
+		} else {
+			stbt.approve(stbtMinter, stbtAmount);
+			bytes32 salt = keccak256(abi.encodePacked(caller, stbtAmount, block.timestamp));
+			IMinter(stbtMinter).redeem(stbtAmount, address(usdc), salt, bytes("redeem rustp"));
+		}
 
 		// convert to USDC amount.
 		uint256 underlyingAmount = stbtAmount.div(1e12);
