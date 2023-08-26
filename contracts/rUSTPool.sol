@@ -328,7 +328,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	 *
 	 */
 	function withdrawAllUSDC() external whenNotPaused realizeInterest {
-		uint256 _amount = _sharesOf(msg.sender);
+		uint256 _amount = balanceOf(msg.sender);
 		require(_amount > 0, "Withdraw USDC should more then 0.");
 
 		// convert to USDC.

@@ -155,6 +155,18 @@ describe("rUSTPool", function () {
 			})
 
 			it("Should be able to withdraw all usdc", async function () {
+				await rustpool.connect(stbtInvestor).borrowUSDC(amountToBorrowUSDC)
+				now = now + ONE_YEAR
+				await mineBlockWithTimestamp(ethers.provider, now)
+
+				// to realize interest
+				await rustpool.connect(admin).setReserveFactor(0)
+
+				// add interest
+				await usdcToken
+					.connect(deployer)
+					.transfer(rustpool.address, amountToBorrowUSDC.mul(2))
+
 				const usdcAmountBefore = await usdcToken.balanceOf(usdcInvestor.address)
 
 				const rustpAmount = await rustpool.balanceOf(usdcInvestor.address)
