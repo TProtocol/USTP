@@ -5,13 +5,17 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import "@openzeppelin/contracts/access/AccessControl.sol";
+
 import "./interfaces/ICurve.sol";
 import "./interfaces/AggregatorInterface.sol";
 import "./interfaces/IMinter.sol";
 
-contract LiquidatePool {
+contract LiquidatePool is AccessControl {
 	using SafeERC20 for IERC20;
 	using SafeMath for uint256;
+
+	bytes32 public constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
 
 	// used to redeem stbt
 	address public mxpRedeemPool;
@@ -129,18 +133,17 @@ contract LiquidatePool {
 		usdc = IERC20(_usdc);
 		priceFeed = AggregatorInterface(_priceFeed);
 		coins = _coins;
-	}
 
-	modifier onlyAdmin() {
-		require(msg.sender == admin, "only admin");
-		_;
+		_setRoleAdmin(POOL_MANAGER_ROLE, DEFAULT_ADMIN_ROLE);
+		_setupRole(DEFAULT_ADMIN_ROLE, admin);
+		_setupRole(POOL_MANAGER_ROLE, admin);
 	}
 
 	/**
 	 * @dev to set the period of processing
 	 * @param _processPeriod the period of processing. it's second.
 	 */
-	function setProcessPeriod(uint256 _processPeriod) external onlyAdmin {
+	function setProcessPeriod(uint256 _processPeriod) external onlyRole(POOL_MANAGER_ROLE) {
 		require(_processPeriod <= 7 days, "should be less than 7 days");
 		processPeriod = _processPeriod;
 		emit ProcessPeriodChanged(processPeriod);
@@ -150,7 +153,7 @@ contract LiquidatePool {
 	 * @dev to set the collector of fee
 	 * @param _feeCollector the address of collector
 	 */
-	function setFeeCollector(address _feeCollector) external onlyAdmin {
+	function setFeeCollector(address _feeCollector) external onlyRole(DEFAULT_ADMIN_ROLE) {
 		require(_feeCollector != address(0), "!_feeCollector");
 		feeCollector = _feeCollector;
 		emit FeeCollectorChanged(feeCollector);
@@ -160,7 +163,7 @@ contract LiquidatePool {
 	 * @dev to set the rate of liquidate fee
 	 * @param _liquidateFeeRate the rate. it should be multiply 10**6
 	 */
-	function setLiquidateFeeRate(uint256 _liquidateFeeRate) external onlyAdmin {
+	function setLiquidateFeeRate(uint256 _liquidateFeeRate) external onlyRole(POOL_MANAGER_ROLE) {
 		require(
 			_liquidateFeeRate <= maxLiquidateFeeRate,
 			"Liquidate fee rate should be less than 1%."
@@ -173,7 +176,7 @@ contract LiquidatePool {
 	 * @dev to set the redemption option
 	 * @param _isOTC option
 	 */
-	function setRedemptionOption(bool _isOTC) external onlyAdmin {
+	function setRedemptionOption(bool _isOTC) external onlyRole(POOL_MANAGER_ROLE) {
 		isOTC = _isOTC;
 		emit RedemptionOptionChanged(isOTC);
 	}
@@ -182,7 +185,9 @@ contract LiquidatePool {
 	 * @dev to set the rate of MP redeem fee
 	 * @param _liquidateMXPFeeRate the rate. it should be multiply 10**6
 	 */
-	function setRedeemMXPFeeRate(uint256 _liquidateMXPFeeRate) external onlyAdmin {
+	function setRedeemMXPFeeRate(
+		uint256 _liquidateMXPFeeRate
+	) external onlyRole(POOL_MANAGER_ROLE) {
 		require(
 			_liquidateMXPFeeRate <= maxLiquidateMXPFeeRate,
 			"redeem MXP fee rate should be less than 1%."
@@ -195,7 +200,7 @@ contract LiquidatePool {
 	 * @dev to set the redeem pool
 	 * @param _redeemPool the address of redeem pool
 	 */
-	function setRedeemPool(address _redeemPool) external onlyAdmin {
+	function setRedeemPool(address _redeemPool) external onlyRole(DEFAULT_ADMIN_ROLE) {
 		require(_redeemPool != address(0), "!_redeemPool");
 		mxpRedeemPool = _redeemPool;
 		emit RedeemPoolChanged(mxpRedeemPool);
@@ -205,7 +210,7 @@ contract LiquidatePool {
 	 * @dev to set the stbt minter
 	 * @param _stbtMinter the address of minter
 	 */
-	function setSTBTMinter(address _stbtMinter) external onlyAdmin {
+	function setSTBTMinter(address _stbtMinter) external onlyRole(DEFAULT_ADMIN_ROLE) {
 		require(_stbtMinter != address(0), "!_stbtMinter");
 		stbtMinter = _stbtMinter;
 		emit RedeemMinterChanged(stbtMinter);
@@ -215,7 +220,7 @@ contract LiquidatePool {
 	 * @dev to set the stbt curve pool
 	 * @param _curvePool the address of curve pool
 	 */
-	function setCurvePool(address _curvePool) external onlyAdmin {
+	function setCurvePool(address _curvePool) external onlyRole(DEFAULT_ADMIN_ROLE) {
 		require(_curvePool != address(0), "!_curvePool");
 		curvePool = ICurve(_curvePool);
 		emit CurvePoolChanged(_curvePool);
@@ -225,7 +230,7 @@ contract LiquidatePool {
 	 * @dev to set the redeem threshold
 	 * @param amount the amount of redeem threshold
 	 */
-	function setRedeemThreshold(uint256 amount) external onlyAdmin {
+	function setRedeemThreshold(uint256 amount) external onlyRole(POOL_MANAGER_ROLE) {
 		redeemThreshold = amount;
 		emit RedeemThresholdChanged(redeemThreshold);
 	}
@@ -235,7 +240,10 @@ contract LiquidatePool {
 	 * @param _lowerPrice the lower price of usdc
 	 * @param _upperPrice the upper price of usdc
 	 */
-	function setPegPrice(int256 _lowerPrice, int256 _upperPrice) external onlyAdmin {
+	function setPegPrice(
+		int256 _lowerPrice,
+		int256 _upperPrice
+	) external onlyRole(POOL_MANAGER_ROLE) {
 		lowerPrice = _lowerPrice;
 		upperPrice = _upperPrice;
 		emit PegPriceChanged(lowerPrice, upperPrice);
