@@ -289,9 +289,7 @@ describe("rUSTPool", function () {
 		beforeEach(async () => {
 			now = now + ONE_HOUR
 			await mineBlockWithTimestamp(ethers.provider, now)
-			await interestRateModel.connect(deployer).setAPR(0)
-			// to realize interest
-			await rustpool.connect(admin).setReserveFactor(0)
+			// await interestRateModel.connect(deployer).setAPR(0)
 			await usdcToken.connect(usdcInvestor).approve(rustpool.address, amountToSupplyUSDC)
 			await rustpool.connect(usdcInvestor).supplyUSDC(amountToSupplyUSDC)
 			await stbtToken.connect(stbtInvestor).approve(rustpool.address, amountToSupplySTBT)
@@ -299,6 +297,11 @@ describe("rUSTPool", function () {
 
 			await rustpool.connect(stbtInvestor).borrowUSDC(amountToBorrowUSDC)
 			await usdcToken.connect(stbtInvestor).approve(rustpool.address, BIGNUMBER)
+			now = now + ONE_YEAR
+			await mineBlockWithTimestamp(ethers.provider, now)
+			// to realize interest
+			await rustpool.connect(admin).setReserveFactor(0)
+			await interestRateModel.connect(deployer).setAPR(0)
 		})
 		describe("Repay USDC", function () {
 			it("Should be able to repay 50%", async function () {
@@ -309,14 +312,17 @@ describe("rUSTPool", function () {
 
 				const borrowUSDC = borrowiUSDP.div(1e12)
 
-				const repayShares = await rustpool.getSharesByrUSTPAmount(borrowiUSDP)
+				const repayShares = await rustpool.getBorrowSharesByrUSTPAmount(borrowiUSDP)
 
 				await rustpool.connect(stbtInvestor).repayUSDC(borrowUSDC)
 
 				const usdcAmountAfter = await usdcToken.balanceOf(stbtInvestor.address)
 				const borrowSharesAfter = await rustpool.getBorrowedSharesOf(stbtInvestor.address)
 
-				expect(borrowSharesAfter).to.be.equal(borrowSharesBefore.sub(repayShares))
+				expect(borrowSharesAfter).to.be.within(
+					borrowSharesBefore.sub(repayShares),
+					borrowSharesBefore.sub(repayShares).add(1e12)
+				)
 				expect(await rustpool.totalBorrowShares()).to.be.equal(borrowSharesAfter)
 				expect(usdcAmountBefore).to.be.equal(usdcAmountAfter.add(borrowUSDC))
 			})
@@ -328,18 +334,39 @@ describe("rUSTPool", function () {
 
 				const borrowUSDC = borrowiUSDP.div(1e12)
 
-				const repayShares = await rustpool.getSharesByrUSTPAmount(borrowiUSDP)
+				const repayShares = await rustpool.getBorrowSharesByrUSTPAmount(borrowiUSDP)
 
 				await rustpool.connect(stbtInvestor).repayUSDC(borrowUSDC)
 
 				const usdcAmountAfter = await usdcToken.balanceOf(stbtInvestor.address)
 				const borrowSharesAfter = await rustpool.getBorrowedSharesOf(stbtInvestor.address)
 
-				expect(borrowSharesAfter).to.be.equal(borrowSharesBefore.sub(repayShares))
+				expect(borrowSharesAfter).to.be.within(
+					borrowSharesBefore.sub(repayShares),
+					borrowSharesBefore.sub(repayShares).add(1e12)
+				)
 				expect(await rustpool.totalBorrowShares()).to.be.equal(borrowSharesAfter)
 				expect(usdcAmountBefore).to.be.equal(usdcAmountAfter.add(borrowUSDC))
 			})
 
+			it("Should be able to repay 100% and user could with all usdc", async function () {
+				const usdcAmountBefore = await usdcToken.balanceOf(stbtInvestor.address)
+				const borrowiUSDP = await rustpool.getBorrowedAmount(stbtInvestor.address)
+				const borrowUSDC = borrowiUSDP.div(1e12)
+				await rustpool.connect(stbtInvestor).repayAll()
+				const usdcAmountAfter = await usdcToken.balanceOf(stbtInvestor.address)
+				// at repayAll function, the repay usdc should be add 1.
+				expect(usdcAmountBefore).to.be.equal(usdcAmountAfter.add(borrowUSDC).add(1))
+				const interestUSDC = borrowUSDC.sub(amountToBorrowUSDC)
+
+				const balanceOfUserBefore = await usdcToken.balanceOf(usdcInvestor.address)
+				await rustpool.connect(usdcInvestor).withdrawAllUSDC()
+
+				const balanceOfUserAfter = await usdcToken.balanceOf(usdcInvestor.address)
+				expect(balanceOfUserAfter).to.be.equal(
+					balanceOfUserBefore.add(amountToSupplyUSDC).add(interestUSDC)
+				)
+			})
 			it("Should fail if repay zero USDC", async function () {
 				await expect(rustpool.connect(stbtInvestor).repayUSDC(0)).to.be.revertedWith(
 					"Repay USDC should more then 0."
@@ -438,6 +465,55 @@ describe("rUSTPool", function () {
 					amountToSupplyUSDC.mul(10530).div(10000)
 				)
 			})
+			it("Should be able the same debt and ustp supply when 100% utilization rate", async function () {
+				const oldTotalSupplyrUSTP = await rustpool.totalSupplyrUSTP()
+				// borrow all usdc
+				await rustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC)
+				now = now + ONE_YEAR
+				await mineBlockWithTimestamp(ethers.provider, now)
+
+				// to realize interest
+				await rustpool.connect(admin).setReserveFactor(0)
+				const newTotalSupplyrUSTP = await rustpool.totalSupplyrUSTP()
+				const totalBorrowrUSTP = await rustpool.totalBorrowrUSTP()
+
+				const rustpAmount = await rustpool.balanceOf(usdcInvestor.address)
+
+				// ~= 5.2% apr
+				expect(rustpAmount.div(1e12)).to.be.within(
+					amountToSupplyUSDC.mul(10510).div(10000),
+					amountToSupplyUSDC.mul(10530).div(10000)
+				)
+
+				expect(totalBorrowrUSTP.sub(amountToSupplyUSDC.mul(1e12))).to.be.equal(
+					newTotalSupplyrUSTP.sub(oldTotalSupplyrUSTP)
+				)
+			})
+
+			it("Should be able the same debt and ustp supply when 50% utilization rate", async function () {
+				const oldTotalSupplyrUSTP = await rustpool.totalSupplyrUSTP()
+				// borrow 50% usdc
+				await rustpool.connect(stbtInvestor).borrowUSDC(amountToSupplyUSDC.div(2))
+				now = now + ONE_YEAR
+				await mineBlockWithTimestamp(ethers.provider, now)
+
+				// to realize interest
+				await rustpool.connect(admin).setReserveFactor(0)
+				const newTotalSupplyrUSTP = await rustpool.totalSupplyrUSTP()
+				const totalBorrowrUSTP = await rustpool.totalBorrowrUSTP()
+
+				const rustpAmount = await rustpool.balanceOf(usdcInvestor.address)
+
+				// ~= 2.1% apr
+				expect(rustpAmount.div(1e12)).to.be.within(
+					amountToSupplyUSDC.mul(10255).div(10000),
+					amountToSupplyUSDC.mul(10265).div(10000)
+				)
+
+				expect(totalBorrowrUSTP.sub(amountToSupplyUSDC.div(2).mul(1e12))).to.be.equal(
+					newTotalSupplyrUSTP.sub(oldTotalSupplyrUSTP)
+				)
+			})
 		})
 	})
 
@@ -510,6 +586,45 @@ describe("rUSTPool", function () {
 			expect(afterUSDCAmount.sub(beforeUSDCAmount)).to.be.equal(amountToSupplyUSDC.sub(fee))
 			const feeCollectorBalance = await usdcToken.balanceOf(feeCollector.address)
 			expect(feeCollectorBalance).to.be.equal(fee)
+		})
+
+		it(`Should be able to liquidate for with interest`, async () => {
+			now = now + ONE_YEAR
+			await mineBlockWithTimestamp(ethers.provider, now)
+
+			// to realize interest
+			await rustpool.connect(admin).setReserveFactor(0)
+
+			const liquidateSTBT = await rustpool.getBorrowedAmount(stbtInvestor.address)
+
+			// ~= 5.2% apr
+			expect(liquidateSTBT.div(1e12)).to.be.within(
+				amountToSupplyUSDC.mul(10510).div(10000),
+				amountToSupplyUSDC.mul(10530).div(10000)
+			)
+
+			const beforeUSDPAmount = await rustpool.balanceOf(usdcInvestor.address)
+			await rustpool
+				.connect(usdcInvestor)
+				.liquidateBorrow(stbtInvestor.address, liquidateSTBT)
+			const afterUSDPAmount = await rustpool.balanceOf(usdcInvestor.address)
+			// There are some err in interest.
+			expect(beforeUSDPAmount.sub(afterUSDPAmount)).to.be.within(
+				liquidateSTBT.mul(99999).div(100000),
+				liquidateSTBT.mul(100001).div(100000)
+			)
+
+			const mxpBalance = await stbtToken.balanceOf(mxpRedeemPool.address)
+			expect(mxpBalance).to.be.equal(liquidateSTBT)
+
+			const liquidationIndex = await liquidatePool.liquidationIndex()
+			await usdcToken
+				.connect(deployer)
+				.transfer(liquidatePool.address, liquidateSTBT.div(1e12))
+			const beforeUSDCAmount = await usdcToken.balanceOf(usdcInvestor.address)
+			await liquidatePool.connect(usdcInvestor).finalizeLiquidationById(liquidationIndex)
+			const afterUSDCAmount = await usdcToken.balanceOf(usdcInvestor.address)
+			expect(afterUSDCAmount.sub(beforeUSDCAmount)).to.be.equal(liquidateSTBT.div(1e12))
 		})
 
 		it(`Should be able to finalizeLiquidationById for twice`, async () => {

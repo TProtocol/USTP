@@ -39,6 +39,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	// Used to record the user's loan shares of rUSTP.
 	mapping(address => uint256) borrowedShares;
 	uint256 public totalBorrowShares;
+	uint256 public totalBorrowrUSTP;
 
 	mapping(address => bool) liquidateProvider;
 	// Used to be a flash liquidate provider
@@ -68,8 +69,8 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	event Burn(address indexed user, uint256 amount, uint256 timestamp);
 	event WithdrawSTBT(address indexed user, uint256 amount, uint256 shares, uint256 timestamp);
 	event WithdrawUSDC(address indexed user, uint256 amount, uint256 timestamp);
-	event BorrowUSDC(address indexed user, uint256 amount, uint256 borrowShares, uint256 timestamp);
-	event RepayUSDC(address indexed user, uint256 amount, uint256 borrowShares, uint256 timestamp);
+	event BorrowUSDC(address indexed user, uint256 amount, uint256 timestamp);
+	event RepayUSDC(address indexed user, uint256 amount, uint256 timestamp);
 
 	event ReservesAdded(uint256 addAmount, uint256 newTotalUnclaimReserves);
 	event LiquidationRecord(
@@ -84,6 +85,9 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	// 0 is not, 1 is pending, 2 is a provider.
 	event FlashLiquidateProvider(address user, uint8 status);
 	event NewLiquidateProvider(address user, bool status);
+
+	event MintDebt(address indexed user, uint256 amount, uint256 shareAmount, uint256 timestamp);
+	event BurnDebt(address indexed user, uint256 amount, uint256 shareAmount, uint256 timestamp);
 
 	constructor(
 		address admin,
@@ -103,6 +107,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 
 			totalSupplyrUSTP = totalSupplyrUSTP.add(totalInterest).sub(reserves);
 			totalUnclaimReserves = totalUnclaimReserves.add(reserves);
+			totalBorrowrUSTP = totalBorrowrUSTP.add(totalInterest);
 
 			emit ReservesAdded(reserves, totalUnclaimReserves);
 		}
@@ -355,19 +360,12 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		// convert to rUSTP.
 		uint256 convertTorUSTP = _amount.mul(10 ** 12);
 
-		uint256 borrowShares = getSharesByrUSTPAmount(convertTorUSTP);
-		borrowedShares[msg.sender] += borrowShares;
-		totalBorrowShares += borrowShares;
-
-		require(
-			getrUSTPAmountByShares(totalBorrowShares) <= totalSupplyrUSTP,
-			"shold be less then supply of rUSTP."
-		);
+		_mintrUSTPDebt(msg.sender, convertTorUSTP);
 		_requireIsSafeCollateralRate(msg.sender);
 
 		usdc.safeTransfer(msg.sender, _amount);
 
-		emit BorrowUSDC(msg.sender, _amount, borrowShares, block.timestamp);
+		emit BorrowUSDC(msg.sender, _amount, block.timestamp);
 	}
 
 	/**
@@ -383,10 +381,9 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		// convert to rUSTP.
 		uint256 convertTorUSTP = _amount.mul(1e12);
 
-		uint256 repayShares = getSharesByrUSTPAmount(convertTorUSTP);
-		_repay(msg.sender, repayShares);
+		_burnrUSTPDebt(msg.sender, convertTorUSTP);
 
-		emit RepayUSDC(msg.sender, _amount, repayShares, block.timestamp);
+		emit RepayUSDC(msg.sender, _amount, block.timestamp);
 	}
 
 	/**
@@ -398,13 +395,15 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		uint256 userBorrowShares = borrowedShares[msg.sender];
 		require(userBorrowShares > 0, "Repay USDC should more then 0.");
 
-		uint256 repayrUSTP = getrUSTPAmountByShares(userBorrowShares);
+		uint256 repayrUSTP = getBorrowrUSTPAmountByShares(userBorrowShares);
+
 		// convert to USDC.
 		uint256 convertToUSDC = repayrUSTP.div(1e12) + 1;
 		usdc.transferFrom(msg.sender, address(this), convertToUSDC);
-		_repay(msg.sender, userBorrowShares);
 
-		emit RepayUSDC(msg.sender, convertToUSDC, userBorrowShares, block.timestamp);
+		_burnrUSTPDebt(msg.sender, repayrUSTP);
+
+		emit RepayUSDC(msg.sender, convertToUSDC, block.timestamp);
 	}
 
 	/**
@@ -451,13 +450,11 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 
 	function _liquidateProcedure(address borrower, uint256 repayAmount) internal {
 		require(msg.sender != borrower, "don't liquidate self.");
-		uint256 borrowedUSD = getrUSTPAmountByShares(borrowedShares[borrower]);
+		uint256 borrowedUSD = getBorrowrUSTPAmountByShares(borrowedShares[borrower]);
 		require(borrowedUSD >= repayAmount, "repayAmount should be less than borrower's debt.");
 		_burnrUSTP(msg.sender, repayAmount);
 
-		uint256 repayShares = getSharesByrUSTPAmount(repayAmount);
-
-		_repay(borrower, repayShares);
+		_burnrUSTPDebt(borrower, repayAmount);
 
 		// always assuming STBT:rUSTP is 1:1.
 		uint256 liquidateShares = stbt.getSharesByAmount(repayAmount);
@@ -537,11 +534,9 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		// Borrow
 		// At migrate. we don't check healthy
 		// Deposit stbt for borrower later
-		uint256 borrowShares = getSharesByrUSTPAmount(_amount);
-		borrowedShares[_borrower] += borrowShares;
-		totalBorrowShares += borrowShares;
+		_mintrUSTPDebt(_borrower, _amount);
 
-		emit BorrowUSDC(msg.sender, _amount, borrowShares, block.timestamp);
+		emit BorrowUSDC(msg.sender, _amount, block.timestamp);
 	}
 
 	/**
@@ -560,8 +555,24 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	 * @param user the address of borrower
 	 */
 
-	function getBorrowedAmount(address user) external view returns (uint256) {
-		return getrUSTPAmountByShares(borrowedShares[user]);
+	function getBorrowedAmount(address user) public view returns (uint256) {
+		return getBorrowrUSTPAmountByShares(borrowedShares[user]);
+	}
+
+	/**
+	 * @return the amount of borrow shares that corresponds to `_rUSTPAmount` protocol-borrowed rUSTP.
+	 */
+	function getBorrowSharesByrUSTPAmount(uint256 _rUSTPAmount) public view returns (uint256) {
+		return
+			totalBorrowrUSTP == 0 ? 0 : _rUSTPAmount.mul(totalBorrowShares).div(totalBorrowrUSTP);
+	}
+
+	/**
+	 * @return the amount of borrow rUSTP that corresponds to `_sharesAmount` borrow shares.
+	 */
+	function getBorrowrUSTPAmountByShares(uint256 _sharesAmount) public view returns (uint256) {
+		return
+			totalBorrowShares == 0 ? 0 : _sharesAmount.mul(totalBorrowrUSTP).div(totalBorrowShares);
 	}
 
 	/**
@@ -600,15 +611,41 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	}
 
 	/**
-	 * @dev repay rUSTP for _account
-	 * Emits`Burn` and `Transfer` event.
+	 * @dev mint rUSTP debt for _receiver.
 	 *
-	 * @param _account the address be usde to burn rUSTP.
-	 * @param _repayShares the amount of rUSTP shares.
+	 * @param _receiver the address be used to receive rUSTP debt.
+	 * @param _amount the amount of rUSTP.
 	 */
-	function _repay(address _account, uint256 _repayShares) internal {
-		borrowedShares[_account] -= _repayShares;
-		totalBorrowShares -= _repayShares;
+	function _mintrUSTPDebt(address _receiver, uint256 _amount) internal {
+		uint256 borrowShares = getBorrowSharesByrUSTPAmount(_amount);
+		if (borrowShares == 0) {
+			borrowShares = _amount;
+		}
+		borrowedShares[_receiver] += borrowShares;
+		totalBorrowShares += borrowShares;
+
+		totalBorrowrUSTP += _amount;
+
+		require(totalBorrowrUSTP <= totalSupplyrUSTP, "shold be less then supply of rUSTP.");
+
+		emit MintDebt(msg.sender, _amount, borrowShares, block.timestamp);
+	}
+
+	/**
+	 * @dev burn rUSTP debt from _receiver.
+	 *
+	 * @param _account the address be used to burn rUSTP.
+	 * @param _amount the amount of rUSTP.
+	 */
+	function _burnrUSTPDebt(address _account, uint256 _amount) internal {
+		uint256 borrowShares = getBorrowSharesByrUSTPAmount(_amount);
+		require(borrowShares > 0, "shares should be more then 0.");
+		borrowedShares[_account] -= borrowShares;
+		totalBorrowShares -= borrowShares;
+
+		totalBorrowrUSTP -= _amount;
+
+		emit BurnDebt(msg.sender, _amount, borrowShares, block.timestamp);
 	}
 
 	/**
@@ -631,7 +668,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	 * @dev The USD value of the collateral asset must be higher than safeCollateralRate.
 	 */
 	function _requireIsSafeCollateralRate(address user) internal view {
-		uint256 borrowedAmount = getrUSTPAmountByShares(borrowedShares[user]);
+		uint256 borrowedAmount = getBorrowedAmount(user);
 		if (borrowedAmount == 0) {
 			return;
 		}
