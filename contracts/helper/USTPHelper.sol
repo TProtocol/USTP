@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "../interfaces/IrUSTPool.sol";
 import "../interfaces/IiUSTP.sol";
 import "../interfaces/IUSTP.sol";
+import "../interfaces/IUniswapV3Pool.sol";
 
 contract USTPHelper is AccessControl {
 	using SafeERC20 for IERC20;
@@ -170,6 +171,125 @@ contract USTPHelper is AccessControl {
 		IERC20(iustp).safeTransfer(msg.sender, mintAmount);
 
 		return mintAmount;
+	}
+
+	// swap
+	uint160 internal constant MIN_SQRT_RATIO = 4295128739;
+	uint160 internal constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970342;
+	bytes32 internal constant POOL_INIT_CODE_HASH =
+		0xe34f199b19b2b4f47f68442619d555527d244f78a3297ea89325f843f87b8b54;
+
+	address public factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+
+	function swapToTokens(
+		address tokenIn,
+		address tokenOut,
+		uint256 amountIn,
+		uint256 minAmount,
+		uint160 sqrtPriceLimitX96,
+		uint24 fee
+	) public returns (uint256 amountOut) {
+		require(tokenIn == rustp || tokenIn == iustp || tokenIn == ustp, "f");
+		uint256 realAmountIn = amountIn;
+		if (tokenIn == rustp) {
+			realAmountIn = this.wraprUSTPToUSTP(amountIn);
+		} else if (tokenIn == iustp) {
+			realAmountIn = this.wrapiUSTPToUSTP(amountIn);
+		}
+		amountOut = exactInputInternal(
+			realAmountIn,
+			msg.sender,
+			sqrtPriceLimitX96,
+			abi.encodePacked(tokenIn, tokenOut, fee)
+		);
+		require(amountOut >= minAmount, "lower than minAmount");
+	}
+
+	/// @dev Performs a single exact input swap
+	function exactInputInternal(
+		uint256 amountIn,
+		address recipient,
+		uint160 sqrtPriceLimitX96,
+		bytes memory data
+	) private returns (uint256 amountOut) {
+		(address tokenIn, address tokenOut, uint24 fee) = abi.decode(
+			data,
+			(address, address, uint24)
+		);
+
+		bool zeroForOne = tokenIn < tokenOut;
+
+		(int256 amount0, int256 amount1) = getPool(tokenIn, tokenOut, fee).swap(
+			recipient,
+			zeroForOne,
+			toInt256(amountIn),
+			sqrtPriceLimitX96 == 0
+				? (zeroForOne ? MIN_SQRT_RATIO + 1 : MAX_SQRT_RATIO - 1)
+				: sqrtPriceLimitX96,
+			data
+		);
+
+		return uint256(-(zeroForOne ? amount1 : amount0));
+	}
+
+	/// @dev Returns the pool for the given token pair and fee. The pool contract may or may not exist.
+	function getPool(
+		address tokenA,
+		address tokenB,
+		uint24 fee
+	) private view returns (IUniswapV3Pool) {
+		if (tokenA > tokenB) (tokenA, tokenB) = (tokenB, tokenA);
+		return IUniswapV3Pool(computeAddress(tokenA, tokenB, fee));
+	}
+
+	function computeAddress(
+		address token0,
+		address token1,
+		uint24 fee
+	) internal view returns (address pool) {
+		require(token0 < token1);
+		pool = address(
+			uint160(
+				uint256(
+					keccak256(
+						abi.encodePacked(
+							hex"ff",
+							factory,
+							keccak256(abi.encode(token0, token1, fee)),
+							POOL_INIT_CODE_HASH
+						)
+					)
+				)
+			)
+		);
+	}
+
+	function uniswapV3SwapCallback(
+		int256 amount0Delta,
+		int256 amount1Delta,
+		bytes calldata _data
+	) external {
+		require(amount0Delta > 0 || amount1Delta > 0); // swaps entirely within 0-liquidity regions are not supported
+		(address tokenIn, address tokenOut, uint24 fee) = abi.decode(
+			_data,
+			(address, address, uint24)
+		);
+		require(msg.sender == address(getPool(tokenIn, tokenOut, fee)));
+
+		(bool isExactInput, uint256 amountToPay) = amount0Delta > 0
+			? (tokenIn < tokenOut, uint256(amount0Delta))
+			: (tokenOut < tokenIn, uint256(amount1Delta));
+
+		if (isExactInput) {
+			IERC20(tokenIn).safeTransfer(msg.sender, amountToPay);
+		} else {
+			IERC20(tokenOut).safeTransfer(msg.sender, amountToPay);
+		}
+	}
+
+	function toInt256(uint256 y) internal pure returns (int256 z) {
+		require(y < 2 ** 255);
+		z = int256(y);
 	}
 
 	/**
