@@ -148,5 +148,14 @@ describe("USTPHelper", function () {
 			await USTPHelper.connect(usdcInvestor).wrapiUSTPToUSTP(amountUSTP)
 			expect(await USTPtoken.balanceOf(usdcInvestor.address)).to.be.equal(amountUSTP)
 		})
+
+		it("Should be able to mint by rUSTP", async function () {
+			await USTPHelper.connect(usdcInvestor).mintrUSTP(amountToSupplyUSDC)
+			expect(await rustpool.balanceOf(usdcInvestor.address)).to.be.equal(amountUSTP)
+
+			await rustpool.connect(usdcInvestor).approve(USTPHelper.address, amountUSTP)
+			await USTPHelper.connect(usdcInvestor).wraprUSTPToUSTP(amountUSTP)
+			expect(await USTPtoken.balanceOf(usdcInvestor.address)).to.be.equal(amountUSTP)
+		})
 	})
 })

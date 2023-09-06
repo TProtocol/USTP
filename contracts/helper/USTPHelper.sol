@@ -43,21 +43,23 @@ contract USTPHelper is AccessControl {
 	 * @dev Mint rUSTP
 	 * @param amount the amout of underlying
 	 */
-	function mintrUSTP(uint256 amount) external {
+	function mintrUSTP(uint256 amount) external returns (uint256) {
 		address user = msg.sender;
 		underlyingToken.safeTransferFrom(user, address(this), amount);
 		underlyingToken.approve(rustp, amount);
 		uint256 beforeAmount = IERC20(rustp).balanceOf(address(this));
 		IrUSTPool(rustp).supplyUSDC(amount);
 		uint256 afterAmount = IERC20(rustp).balanceOf(address(this));
-		IERC20(rustp).safeTransfer(msg.sender, afterAmount.sub(beforeAmount));
+		uint256 mintAmount = afterAmount.sub(beforeAmount);
+		IERC20(rustp).safeTransfer(msg.sender, mintAmount);
+		return mintAmount;
 	}
 
 	/**
 	 * @dev Mint iUSTP
 	 * @param amount the amout of underlying
 	 */
-	function mintiUSTP(uint256 amount) external {
+	function mintiUSTP(uint256 amount) external returns (uint256) {
 		address user = msg.sender;
 		underlyingToken.safeTransferFrom(user, address(this), amount);
 		underlyingToken.approve(rustp, amount);
@@ -70,14 +72,18 @@ contract USTPHelper is AccessControl {
 		uint256 beforeIUSTP = IERC20(iustp).balanceOf(address(this));
 		IiUSTP(iustp).wrap(userAmount);
 		uint256 afterIUSTP = IERC20(iustp).balanceOf(address(this));
+
+		uint256 mintAmount = afterIUSTP.sub(beforeIUSTP);
 		IERC20(iustp).safeTransfer(msg.sender, afterIUSTP.sub(beforeIUSTP));
+
+		return mintAmount;
 	}
 
 	/**
 	 * @dev Mint USTP
 	 * @param amount the amout of underlying
 	 */
-	function mintUSTP(uint256 amount) external {
+	function mintUSTP(uint256 amount) external returns (uint256) {
 		address user = msg.sender;
 		underlyingToken.safeTransferFrom(user, address(this), amount);
 		underlyingToken.approve(rustp, amount);
@@ -90,14 +96,18 @@ contract USTPHelper is AccessControl {
 		uint256 beforeUSTP = IERC20(ustp).balanceOf(address(this));
 		IUSTP(ustp).deposit(userAmount);
 		uint256 afterUSTP = IERC20(ustp).balanceOf(address(this));
-		IERC20(ustp).safeTransfer(msg.sender, afterUSTP.sub(beforeUSTP));
+
+		uint256 mintAmount = afterUSTP.sub(beforeUSTP);
+		IERC20(ustp).safeTransfer(msg.sender, mintAmount);
+
+		return mintAmount;
 	}
 
 	/**
 	 * @dev Wrap iUSTP to USTP
 	 * @param amount the amout of iUSTP
 	 */
-	function wrapiUSTPToUSTP(uint256 amount) external {
+	function wrapiUSTPToUSTP(uint256 amount) external returns (uint256) {
 		address user = msg.sender;
 		uint256 beforerUSTP = IERC20(rustp).balanceOf(address(this));
 		IERC20(iustp).safeTransferFrom(user, address(this), amount);
@@ -111,14 +121,38 @@ contract USTPHelper is AccessControl {
 		IUSTP(ustp).deposit(userrUSTPAmount);
 
 		uint256 afterUSTP = IERC20(ustp).balanceOf(address(this));
-		IERC20(ustp).safeTransfer(msg.sender, afterUSTP.sub(beforeUSTP));
+
+		uint256 mintAmount = afterUSTP.sub(beforeUSTP);
+		IERC20(ustp).safeTransfer(msg.sender, mintAmount);
+
+		return mintAmount;
+	}
+
+	/**
+	 * @dev Wrap rUSTP to USTP
+	 * @param amount the amout of rUSTP
+	 */
+	function wraprUSTPToUSTP(uint256 amount) external returns (uint256) {
+		address user = msg.sender;
+		IERC20(rustp).safeTransferFrom(user, address(this), amount);
+
+		IERC20(rustp).approve(ustp, amount);
+		uint256 beforeUSTP = IERC20(ustp).balanceOf(address(this));
+		IUSTP(ustp).deposit(amount);
+
+		uint256 afterUSTP = IERC20(ustp).balanceOf(address(this));
+
+		uint256 mintAmount = afterUSTP.sub(beforeUSTP);
+		IERC20(ustp).safeTransfer(msg.sender, mintAmount);
+
+		return mintAmount;
 	}
 
 	/**
 	 * @dev Wrap USTP to iUSTP
 	 * @param amount the amout of USTP
 	 */
-	function wrapUSTPToiUSTP(uint256 amount) external {
+	function wrapUSTPToiUSTP(uint256 amount) external returns (uint256) {
 		address user = msg.sender;
 		uint256 beforerUSTP = IERC20(rustp).balanceOf(address(this));
 		IERC20(ustp).safeTransferFrom(user, address(this), amount);
@@ -131,7 +165,11 @@ contract USTPHelper is AccessControl {
 		uint256 beforeIUSTP = IERC20(iustp).balanceOf(address(this));
 		IiUSTP(iustp).wrap(userrUSTPAmount);
 		uint256 afterIUSTP = IERC20(iustp).balanceOf(address(this));
-		IERC20(iustp).safeTransfer(msg.sender, afterIUSTP.sub(beforeIUSTP));
+
+		uint256 mintAmount = afterIUSTP.sub(beforeIUSTP);
+		IERC20(iustp).safeTransfer(msg.sender, mintAmount);
+
+		return mintAmount;
 	}
 
 	/**
