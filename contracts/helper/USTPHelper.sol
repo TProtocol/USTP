@@ -109,6 +109,13 @@ contract USTPHelper is AccessControl {
 	 * @param amount the amout of iUSTP
 	 */
 	function wrapiUSTPToUSTP(uint256 amount) external returns (uint256) {
+		uint256 mintAmount = _wrapiUSTPToUSTP(amount);
+		IERC20(ustp).safeTransfer(msg.sender, mintAmount);
+
+		return mintAmount;
+	}
+
+	function _wrapiUSTPToUSTP(uint256 amount) internal returns (uint256) {
 		address user = msg.sender;
 		uint256 beforerUSTP = IERC20(rustp).balanceOf(address(this));
 		IERC20(iustp).safeTransferFrom(user, address(this), amount);
@@ -124,7 +131,6 @@ contract USTPHelper is AccessControl {
 		uint256 afterUSTP = IERC20(ustp).balanceOf(address(this));
 
 		uint256 mintAmount = afterUSTP.sub(beforeUSTP);
-		IERC20(ustp).safeTransfer(msg.sender, mintAmount);
 
 		return mintAmount;
 	}
@@ -203,7 +209,7 @@ contract USTPHelper is AccessControl {
 		if (tokenIn == rustp) {
 			realAmountIn = _wraprUSTPToUSTP(amountIn);
 		} else if (tokenIn == iustp) {
-			realAmountIn = _wrapUSTPToiUSTP(amountIn);
+			realAmountIn = _wrapiUSTPToUSTP(amountIn);
 		} else {
 			IERC20(ustp).safeTransferFrom(msg.sender, address(this), realAmountIn);
 		}
