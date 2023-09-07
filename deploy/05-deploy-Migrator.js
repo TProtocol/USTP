@@ -1,5 +1,5 @@
 const { getNamedAccounts, deployments, network } = require("hardhat")
-const { developmentChains, AddressConfig } = require("../common/network-config")
+const { developmentChains, AddressConfig, rUSTPoolId } = require("../common/network-config")
 const { verify } = require("../common/verify")
 
 module.exports = async ({ getNamedAccounts, deployments }) => {
@@ -11,9 +11,21 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 	const wtbt = "0xD38e031f4529a07996aaB977d2B79f0e00656C56"
 	const treasury = "0xa01D9bc8343016C7DDD39852e49890a8361B2884"
 	const borrower = "0x7d273212AED9651797701a9dFb8e636F6Ba832b2"
+
+	const rUSTPool = await ethers.getContractAt(
+		rUSTPoolId,
+		(
+			await deployments.get(rUSTPoolId)
+		).address
+	)
+
+	if (rUSTPool.address != "0x38a1753AEd353e58c64a55a3f3c750E919915537") {
+		return
+	}
+
 	const MigratorArgs = [
 		config.adminAddress,
-		config.rUSTPAddess,
+		rUSTPool.address,
 		wtbt,
 		treasury,
 		config.stbtAddress,

@@ -134,6 +134,12 @@ contract USTPHelper is AccessControl {
 	 * @param amount the amout of rUSTP
 	 */
 	function wraprUSTPToUSTP(uint256 amount) external returns (uint256) {
+		uint256 mintAmount = _wraprUSTPToUSTP(amount);
+		IERC20(ustp).safeTransfer(msg.sender, mintAmount);
+		return mintAmount;
+	}
+
+	function _wraprUSTPToUSTP(uint256 amount) internal returns (uint256) {
 		address user = msg.sender;
 		IERC20(rustp).safeTransferFrom(user, address(this), amount);
 
@@ -144,8 +150,6 @@ contract USTPHelper is AccessControl {
 		uint256 afterUSTP = IERC20(ustp).balanceOf(address(this));
 
 		uint256 mintAmount = afterUSTP.sub(beforeUSTP);
-		IERC20(ustp).safeTransfer(msg.sender, mintAmount);
-
 		return mintAmount;
 	}
 
@@ -154,6 +158,12 @@ contract USTPHelper is AccessControl {
 	 * @param amount the amout of USTP
 	 */
 	function wrapUSTPToiUSTP(uint256 amount) external returns (uint256) {
+		uint256 mintAmount = _wrapUSTPToiUSTP(amount);
+		IERC20(iustp).safeTransfer(msg.sender, mintAmount);
+		return mintAmount;
+	}
+
+	function _wrapUSTPToiUSTP(uint256 amount) internal returns (uint256) {
 		address user = msg.sender;
 		uint256 beforerUSTP = IERC20(rustp).balanceOf(address(this));
 		IERC20(ustp).safeTransferFrom(user, address(this), amount);
@@ -168,7 +178,6 @@ contract USTPHelper is AccessControl {
 		uint256 afterIUSTP = IERC20(iustp).balanceOf(address(this));
 
 		uint256 mintAmount = afterIUSTP.sub(beforeIUSTP);
-		IERC20(iustp).safeTransfer(msg.sender, mintAmount);
 
 		return mintAmount;
 	}
@@ -192,15 +201,18 @@ contract USTPHelper is AccessControl {
 		require(tokenIn == rustp || tokenIn == iustp || tokenIn == ustp, "f");
 		uint256 realAmountIn = amountIn;
 		if (tokenIn == rustp) {
-			realAmountIn = this.wraprUSTPToUSTP(amountIn);
+			realAmountIn = _wraprUSTPToUSTP(amountIn);
 		} else if (tokenIn == iustp) {
-			realAmountIn = this.wrapiUSTPToUSTP(amountIn);
+			realAmountIn = _wrapUSTPToiUSTP(amountIn);
+		} else {
+			IERC20(ustp).safeTransferFrom(msg.sender, address(this), realAmountIn);
 		}
+
 		amountOut = exactInputInternal(
 			realAmountIn,
 			msg.sender,
 			sqrtPriceLimitX96,
-			abi.encodePacked(tokenIn, tokenOut, fee)
+			abi.encode(ustp, tokenOut, fee)
 		);
 		require(amountOut >= minAmount, "lower than minAmount");
 	}
@@ -211,7 +223,7 @@ contract USTPHelper is AccessControl {
 		address recipient,
 		uint160 sqrtPriceLimitX96,
 		bytes memory data
-	) private returns (uint256 amountOut) {
+	) internal returns (uint256 amountOut) {
 		(address tokenIn, address tokenOut, uint24 fee) = abi.decode(
 			data,
 			(address, address, uint24)
@@ -237,7 +249,7 @@ contract USTPHelper is AccessControl {
 		address tokenA,
 		address tokenB,
 		uint24 fee
-	) private view returns (IUniswapV3Pool) {
+	) internal view returns (IUniswapV3Pool) {
 		if (tokenA > tokenB) (tokenA, tokenB) = (tokenB, tokenA);
 		return IUniswapV3Pool(computeAddress(tokenA, tokenB, fee));
 	}

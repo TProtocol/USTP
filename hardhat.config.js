@@ -45,6 +45,12 @@ module.exports = {
 			accounts: [DEPLOYER_KEY],
 			confirmations: 2,
 		},
+		mainnet_fork: {
+			url: process.env.FORK_API_RPC,
+			chainId: 1,
+			accounts: [process.env.FORK_TEST_PRIVATE],
+			confirmations: 0,
+		},
 	},
 	etherscan: {
 		apiKey: {
