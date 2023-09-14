@@ -3,14 +3,18 @@ pragma solidity 0.8.18;
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
+import "./interfaces/IWSTBT.sol";
 import "./interfaces/IInterestRateModel.sol";
-import "./interfaces/IwSTBTLiquidatePool.sol";
+import "./interfaces/ILiquidatePool.sol";
+import "./interfaces/IMigrator.sol";
 import "./rUSTP.sol";
 
-contract wWSTBTPool is rUSTP, AccessControl, Pausable {
+contract rUSTPool is rUSTP, AccessControl, Pausable {
+	using SafeERC20 for IERC20;
 	using SafeMath for uint256;
 
 	bytes32 public constant POOL_MANAGER_ROLE = keccak256("POOL_MANAGER_ROLE");
@@ -20,20 +24,22 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 	uint256 public constant APR_COEFFICIENT = 1e8;
 	// Used to calculate the fee base.
 	uint256 public constant FEE_COEFFICIENT = 1e8;
-	// Used to calculate shares of WSTBT deposited by users.
-	uint256 public totalDepositedBalancesWSTBT;
+	// Used to calculate amount of WSTBT deposited by users.
+	uint256 public totalDepositedAmountWSTBT;
 	// Used to calculate total supply of rUSTP.
 	uint256 public totalSupplyrUSTP;
 
 	uint256 public safeCollateralRate = 101 * 1e18;
 	uint256 public reserveFactor;
 
-	// Used to record the user's WSTBT shares.
+	// Used to record the user's WSTBT amount.
 	mapping(address => uint256) public depositedAmountWSTBT;
 	// Used to record the user's loan shares of rUSTP.
 	mapping(address => uint256) borrowedShares;
 	uint256 public totalBorrowShares;
+	uint256 public totalBorrowrUSTP;
 
+	mapping(address => bool) liquidateProvider;
 	// Used to be a flash liquidate provider
 	mapping(address => bool) flashLiquidateProvider;
 	mapping(address => bool) pendingFlashLiquidateProvider;
@@ -42,25 +48,25 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 	uint256 public constant maxInterestRate = APR_COEFFICIENT / 10;
 
 	// collateral token.
-	IERC20 public wstbt;
+	IWSTBT public wstbt;
 	// Used to mint rUSTP.
 	IERC20 public usdc;
 	// interest rate model
 	IInterestRateModel public interestRateModel;
-	IwSTBTLiquidatePool public liquidatePool;
+	ILiquidatePool public liquidatePool;
 
 	// the claimable fee for protocol
 	// reserves will be claim with rUSTP.
 	uint256 public totalUnclaimReserves;
 
-	event SupplyWSTBT(address indexed user, uint256 amount, uint256 shares, uint256 timestamp);
+	event SupplySTBT(address indexed user, uint256 amount, uint256 shares, uint256 timestamp);
 	event SupplyUSDC(address indexed user, uint256 amount, uint256 timestamp);
 	event Mint(address indexed user, uint256 amount, uint256 timestamp);
 	event Burn(address indexed user, uint256 amount, uint256 timestamp);
-	event WithdrawWSTBT(address indexed user, uint256 amount, uint256 shares, uint256 timestamp);
+	event WithdrawSTBT(address indexed user, uint256 amount, uint256 shares, uint256 timestamp);
 	event WithdrawUSDC(address indexed user, uint256 amount, uint256 timestamp);
-	event BorrowUSDC(address indexed user, uint256 amount, uint256 borrowShares, uint256 timestamp);
-	event RepayUSDC(address indexed user, uint256 amount, uint256 borrowShares, uint256 timestamp);
+	event BorrowUSDC(address indexed user, uint256 amount, uint256 timestamp);
+	event RepayUSDC(address indexed user, uint256 amount, uint256 timestamp);
 
 	event ReservesAdded(uint256 addAmount, uint256 newTotalUnclaimReserves);
 	event LiquidationRecord(
@@ -74,12 +80,16 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 
 	// 0 is not, 1 is pending, 2 is a provider.
 	event FlashLiquidateProvider(address user, uint8 status);
+	event NewLiquidateProvider(address user, bool status);
+
+	event MintDebt(address indexed user, uint256 amount, uint256 shareAmount, uint256 timestamp);
+	event BurnDebt(address indexed user, uint256 amount, uint256 shareAmount, uint256 timestamp);
 
 	constructor(
 		address admin,
-		IERC20 _wstbt,
+		IWSTBT _wstbt,
 		IERC20 _usdc
-	) ERC20("Interest-bearing USD of TProtocol", "rUSTP") {
+	) ERC20("Interest-bearing USD of TProtocol - WSTBT Pool", "rUSTP-WSTBT") {
 		_setupRole(DEFAULT_ADMIN_ROLE, admin);
 		wstbt = _wstbt;
 		usdc = _usdc;
@@ -92,6 +102,7 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 
 			totalSupplyrUSTP = totalSupplyrUSTP.add(totalInterest).sub(reserves);
 			totalUnclaimReserves = totalUnclaimReserves.add(reserves);
+			totalBorrowrUSTP = totalBorrowrUSTP.add(totalInterest);
 
 			emit ReservesAdded(reserves, totalUnclaimReserves);
 		}
@@ -121,7 +132,7 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 		address _address
 	) external onlyRole(DEFAULT_ADMIN_ROLE) realizeInterest {
 		require(address(liquidatePool) == address(0), "initialized.");
-		liquidatePool = IwSTBTLiquidatePool(_address);
+		liquidatePool = ILiquidatePool(_address);
 	}
 
 	/**
@@ -182,9 +193,9 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 	 *
 	 * @param _amount the amount of USDC
 	 */
-	function supplyUSDC(uint256 _amount) external realizeInterest whenNotPaused {
+	function supplyUSDC(uint256 _amount) external whenNotPaused realizeInterest {
 		require(_amount > 0, "Supply USDC should more then 0.");
-		usdc.transferFrom(msg.sender, address(this), _amount);
+		usdc.safeTransferFrom(msg.sender, address(this), _amount);
 
 		// convert to rUSTP.
 		uint256 convertTorUSTP = _amount.mul(1e12);
@@ -195,38 +206,75 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 	}
 
 	/**
-	 * @notice Supply WSTBT.
-	 * Emits a `SupplyWSTBT` event.
+	 * @notice Supply STBT.
+	 * Emits a `SupplySTBT` event.
 	 *
-	 * @param _amount the amount of WSTBT.
+	 * @param _amount the amount of STBT.
 	 */
-	function supplyWSTBT(uint256 _amount) external whenNotPaused realizeInterest {
-		require(_amount > 0, "Supply WSTBT should more then 0.");
-
-		wstbt.transferFrom(msg.sender, address(this), _amount);
-
-		totalDepositedBalancesWSTBT += _amount;
-		depositedAmountWSTBT[msg.sender] += _amount;
-
-		emit SupplyWSTBT(msg.sender, _amount, _amount, block.timestamp);
+	function supplySTBT(uint256 _amount) external whenNotPaused realizeInterest {
+		require(_amount > 0, "Supply STBT should more then 0.");
+		_supplySTBTFor(_amount, msg.sender);
 	}
 
 	/**
-	 * @notice Withdraw WSTBT to an address.
-	 * Emits a `WithdrawWSTBT` event.
+	 * @notice Supply STBT for others.
+	 * Emits a `SupplySTBT` event.
 	 *
-	 * @param _amount the amount of WSTBT.
+	 * @param _amount the amount of STBT.
+	 * @param _receiver receiver
 	 */
-	function withdrawWSTBT(uint256 _amount) external whenNotPaused realizeInterest {
-		require(_amount > 0, "Withdraw WSTBT should more then 0.");
 
-		totalDepositedBalancesWSTBT -= _amount;
+	function supplySTBTFor(
+		uint256 _amount,
+		address _receiver
+	) external whenNotPaused realizeInterest {
+		require(_amount > 0, "Supply STBT should more then 0.");
+		_supplySTBTFor(_amount, _receiver);
+	}
+
+	function _supplySTBTFor(uint256 _amount, address _receiver) internal {
+		IERC20(wstbt).safeTransferFrom(msg.sender, address(this), _amount);
+
+		totalDepositedAmountWSTBT += _amount;
+		depositedAmountWSTBT[_receiver] += _amount;
+
+		emit SupplySTBT(_receiver, _amount, _amount, block.timestamp);
+	}
+
+	/**
+	 * @notice Withdraw STBT to an address.
+	 * Emits a `WithdrawSTBT` event.
+	 *
+	 * @param _amount the amount of STBT.
+	 */
+	function withdrawSTBT(uint256 _amount) external whenNotPaused realizeInterest {
+		require(_amount > 0, "Withdraw STBT should more then 0.");
+
+		totalDepositedAmountWSTBT -= _amount;
 		depositedAmountWSTBT[msg.sender] -= _amount;
 
 		_requireIsSafeCollateralRate(msg.sender);
-		wstbt.transfer(msg.sender, _amount);
+		IERC20(wstbt).safeTransfer(msg.sender, _amount);
 
-		emit WithdrawWSTBT(msg.sender, _amount, _amount, block.timestamp);
+		emit WithdrawSTBT(msg.sender, _amount, _amount, block.timestamp);
+	}
+
+	/**
+	 * @notice Withdraw all STBT to an address.
+	 * Emits a `WithdrawSTBT` event.
+	 *
+	 */
+	function withdrawAllSTBT() external whenNotPaused realizeInterest {
+		uint256 amount = depositedAmountWSTBT[msg.sender];
+		require(amount > 0, "Withdraw STBT should more then 0.");
+
+		totalDepositedAmountWSTBT -= amount;
+		depositedAmountWSTBT[msg.sender] = 0;
+
+		_requireIsSafeCollateralRate(msg.sender);
+		IERC20(wstbt).safeTransfer(msg.sender, amount);
+
+		emit WithdrawSTBT(msg.sender, amount, amount, block.timestamp);
 	}
 
 	/**
@@ -243,9 +291,31 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 		uint256 convertTorUSTP = _amount.mul(10 ** 12);
 
 		_burnrUSTP(msg.sender, convertTorUSTP);
-		usdc.transfer(msg.sender, _amount);
+		usdc.safeTransfer(msg.sender, _amount);
 
 		emit WithdrawUSDC(msg.sender, _amount, block.timestamp);
+	}
+
+	/**
+	 * @notice Withdraw all USDC to an address.
+	 * rUSTP:USDC always 1:1.
+	 * Emits a `WithdrawUSDC` event.
+	 *
+	 */
+	function withdrawAllUSDC() external whenNotPaused realizeInterest {
+		uint256 _amount = balanceOf(msg.sender);
+		require(_amount > 0, "Withdraw USDC should more then 0.");
+
+		// convert to USDC.
+		uint256 convertToUSDC = _amount.div(10 ** 12);
+
+		_burnrUSTP(msg.sender, _amount);
+
+		if (convertToUSDC > 0) {
+			usdc.safeTransfer(msg.sender, convertToUSDC);
+		}
+
+		emit WithdrawUSDC(msg.sender, convertToUSDC, block.timestamp);
 	}
 
 	/**
@@ -260,19 +330,12 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 		// convert to rUSTP.
 		uint256 convertTorUSTP = _amount.mul(10 ** 12);
 
-		uint256 borrowShares = getSharesByrUSTPAmount(convertTorUSTP);
-		borrowedShares[msg.sender] += borrowShares;
-		totalBorrowShares += borrowShares;
-
-		require(
-			getrUSTPAmountByShares(totalBorrowShares) <= totalSupplyrUSTP,
-			"shold be less then supply of rUSTP."
-		);
+		_mintrUSTPDebt(msg.sender, convertTorUSTP);
 		_requireIsSafeCollateralRate(msg.sender);
 
-		usdc.transfer(msg.sender, _amount);
+		usdc.safeTransfer(msg.sender, _amount);
 
-		emit BorrowUSDC(msg.sender, _amount, borrowShares, block.timestamp);
+		emit BorrowUSDC(msg.sender, _amount, block.timestamp);
 	}
 
 	/**
@@ -284,14 +347,13 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 	function repayUSDC(uint256 _amount) external whenNotPaused realizeInterest {
 		require(_amount > 0, "Repay USDC should more then 0.");
 
-		usdc.transferFrom(msg.sender, address(this), _amount);
+		usdc.safeTransferFrom(msg.sender, address(this), _amount);
 		// convert to rUSTP.
 		uint256 convertTorUSTP = _amount.mul(1e12);
 
-		uint256 repayShares = getSharesByrUSTPAmount(convertTorUSTP);
-		_repay(msg.sender, repayShares);
+		_burnrUSTPDebt(msg.sender, convertTorUSTP);
 
-		emit RepayUSDC(msg.sender, _amount, repayShares, block.timestamp);
+		emit RepayUSDC(msg.sender, _amount, block.timestamp);
 	}
 
 	/**
@@ -301,14 +363,17 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 	 */
 	function repayAll() external whenNotPaused realizeInterest {
 		uint256 userBorrowShares = borrowedShares[msg.sender];
+		require(userBorrowShares > 0, "Repay USDC should more then 0.");
 
-		uint256 repayrUSTP = getrUSTPAmountByShares(userBorrowShares);
+		uint256 repayrUSTP = getBorrowrUSTPAmountByShares(userBorrowShares);
+
 		// convert to USDC.
 		uint256 convertToUSDC = repayrUSTP.div(1e12) + 1;
-		usdc.transferFrom(msg.sender, address(this), convertToUSDC);
-		_repay(msg.sender, userBorrowShares);
+		usdc.safeTransferFrom(msg.sender, address(this), convertToUSDC);
 
-		emit RepayUSDC(msg.sender, convertToUSDC, userBorrowShares, block.timestamp);
+		_burnrUSTPDebt(msg.sender, repayrUSTP);
+
+		emit RepayUSDC(msg.sender, convertToUSDC, block.timestamp);
 	}
 
 	/**
@@ -323,26 +388,9 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 		address borrower,
 		uint256 repayAmount
 	) external whenNotPaused realizeInterest {
-		require(msg.sender != borrower, "don't liquidate self");
-		uint256 borrowedUSD = getrUSTPAmountByShares(borrowedShares[borrower]);
-		require(borrowedUSD >= repayAmount, "repayAmount should be less than borrower's debt.");
-		_burnrUSTP(msg.sender, repayAmount);
-
-		uint256 repayShares = getSharesByrUSTPAmount(repayAmount);
-
-		_repay(borrower, repayShares);
-
-		uint256 liquidateAmount = repayAmount.mul(1e18).div(_wstbtPrice());
-		// TODO maybe no need to check.
-		require(
-			depositedAmountWSTBT[borrower] >= liquidateAmount,
-			"liquidateAmount should be less than borrower's deposit."
-		);
-		totalDepositedBalancesWSTBT -= liquidateAmount;
-		depositedAmountWSTBT[borrower] -= liquidateAmount;
-
-		wstbt.transfer(address(liquidatePool), repayAmount);
-		liquidatePool.liquidateWSTBT(msg.sender, liquidateAmount);
+		require(liquidateProvider[borrower], "borrower is not a provider.");
+		_liquidateProcedure(borrower, repayAmount);
+		liquidatePool.liquidateSTBT(msg.sender, repayAmount);
 
 		emit LiquidationRecord(msg.sender, borrower, repayAmount, block.timestamp);
 	}
@@ -364,28 +412,31 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 		uint256 minReturn
 	) external whenNotPaused realizeInterest {
 		require(flashLiquidateProvider[borrower], "borrower is not a provider.");
+		_liquidateProcedure(borrower, repayAmount);
+		liquidatePool.flashLiquidateSTBTByCurve(repayAmount, j, minReturn, msg.sender);
+
+		emit LiquidationRecord(msg.sender, borrower, repayAmount, block.timestamp);
+	}
+
+	function _liquidateProcedure(address borrower, uint256 repayAmount) internal {
 		require(msg.sender != borrower, "don't liquidate self.");
-		uint256 borrowedUSD = getrUSTPAmountByShares(borrowedShares[borrower]);
+		uint256 borrowedUSD = getBorrowrUSTPAmountByShares(borrowedShares[borrower]);
 		require(borrowedUSD >= repayAmount, "repayAmount should be less than borrower's debt.");
 		_burnrUSTP(msg.sender, repayAmount);
 
-		uint256 repayShares = getSharesByrUSTPAmount(repayAmount);
+		_burnrUSTPDebt(borrower, repayAmount);
 
-		_repay(borrower, repayShares);
-
-		uint256 liquidateAmount = repayAmount.mul(1e18).div(_wstbtPrice());
+		// always assuming STBT:rUSTP is 1:1.
+		uint256 liquidateShares = wstbt.getWstbtByStbt(repayAmount);
 		// TODO maybe no need to check.
 		require(
-			depositedAmountWSTBT[borrower] >= liquidateAmount,
-			"liquidateAmount should be less than borrower's deposit."
+			depositedAmountWSTBT[borrower] >= liquidateShares,
+			"liquidateShares should be less than borrower's deposit."
 		);
-		totalDepositedBalancesWSTBT -= liquidateAmount;
-		depositedAmountWSTBT[borrower] -= liquidateAmount;
+		totalDepositedAmountWSTBT -= liquidateShares;
+		depositedAmountWSTBT[borrower] -= liquidateShares;
 
-		wstbt.transfer(address(liquidatePool), repayAmount);
-		liquidatePool.flashLiquidateWSTBTByCurve(repayAmount, j, minReturn, msg.sender);
-
-		emit LiquidationRecord(msg.sender, borrower, repayAmount, block.timestamp);
+		IERC20(wstbt).safeTransfer(address(liquidatePool), repayAmount);
 	}
 
 	/**
@@ -416,6 +467,14 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 	}
 
 	/**
+	 * @notice Admin add a provider
+	 */
+	function setLiquidateProvider(address user, bool status) external onlyRole(POOL_MANAGER_ROLE) {
+		liquidateProvider[user] = status;
+		emit NewLiquidateProvider(user, status);
+	}
+
+	/**
 	 * @notice Get the borrowed shares of user
 	 *
 	 * @param user the address of borrower
@@ -431,8 +490,24 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 	 * @param user the address of borrower
 	 */
 
-	function getBorrowedAmount(address user) external view returns (uint256) {
-		return getrUSTPAmountByShares(borrowedShares[user]);
+	function getBorrowedAmount(address user) public view returns (uint256) {
+		return getBorrowrUSTPAmountByShares(borrowedShares[user]);
+	}
+
+	/**
+	 * @return the amount of borrow shares that corresponds to `_rUSTPAmount` protocol-borrowed rUSTP.
+	 */
+	function getBorrowSharesByrUSTPAmount(uint256 _rUSTPAmount) public view returns (uint256) {
+		return
+			totalBorrowrUSTP == 0 ? 0 : _rUSTPAmount.mul(totalBorrowShares).div(totalBorrowrUSTP);
+	}
+
+	/**
+	 * @return the amount of borrow rUSTP that corresponds to `_sharesAmount` borrow shares.
+	 */
+	function getBorrowrUSTPAmountByShares(uint256 _sharesAmount) public view returns (uint256) {
+		return
+			totalBorrowShares == 0 ? 0 : _sharesAmount.mul(totalBorrowrUSTP).div(totalBorrowShares);
 	}
 
 	/**
@@ -471,15 +546,41 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 	}
 
 	/**
-	 * @dev repay rUSTP for _account
-	 * Emits`Burn` and `Transfer` event.
+	 * @dev mint rUSTP debt for _receiver.
 	 *
-	 * @param _account the address be usde to burn rUSTP.
-	 * @param _repayShares the amount of rUSTP shares.
+	 * @param _receiver the address be used to receive rUSTP debt.
+	 * @param _amount the amount of rUSTP.
 	 */
-	function _repay(address _account, uint256 _repayShares) internal {
-		borrowedShares[_account] -= _repayShares;
-		totalBorrowShares -= _repayShares;
+	function _mintrUSTPDebt(address _receiver, uint256 _amount) internal {
+		uint256 borrowShares = getBorrowSharesByrUSTPAmount(_amount);
+		if (borrowShares == 0) {
+			borrowShares = _amount;
+		}
+		borrowedShares[_receiver] += borrowShares;
+		totalBorrowShares += borrowShares;
+
+		totalBorrowrUSTP += _amount;
+
+		require(totalBorrowrUSTP <= totalSupplyrUSTP, "shold be less then supply of rUSTP.");
+
+		emit MintDebt(msg.sender, _amount, borrowShares, block.timestamp);
+	}
+
+	/**
+	 * @dev burn rUSTP debt from _receiver.
+	 *
+	 * @param _account the address be used to burn rUSTP.
+	 * @param _amount the amount of rUSTP.
+	 */
+	function _burnrUSTPDebt(address _account, uint256 _amount) internal {
+		uint256 borrowShares = getBorrowSharesByrUSTPAmount(_amount);
+		require(borrowShares > 0, "shares should be more then 0.");
+		borrowedShares[_account] -= borrowShares;
+		totalBorrowShares -= borrowShares;
+
+		totalBorrowrUSTP -= _amount;
+
+		emit BurnDebt(msg.sender, _amount, borrowShares, block.timestamp);
 	}
 
 	/**
@@ -491,19 +592,18 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 
 	/**
 	 * @dev Return USD value of WSTBT
-	 * TODO Wait MXP's Oracle
 	 * it should be equal to $1.
 	 * maybe possible through the oracle.
 	 */
-	function _wstbtPrice() internal pure returns (uint256) {
-		return 1e18;
+	function _wstbtPrice() internal view returns (uint256) {
+		return wstbt.stbtPerToken();
 	}
 
 	/**
 	 * @dev The USD value of the collateral asset must be higher than safeCollateralRate.
 	 */
 	function _requireIsSafeCollateralRate(address user) internal view {
-		uint256 borrowedAmount = getrUSTPAmountByShares(borrowedShares[user]);
+		uint256 borrowedAmount = getBorrowedAmount(user);
 		if (borrowedAmount == 0) {
 			return;
 		}
@@ -523,10 +623,9 @@ contract wWSTBTPool is rUSTP, AccessControl, Pausable {
 			_totalSupplyrUSTP,
 			getrUSTPAmountByShares(totalBorrowShares)
 		);
-		require(
-			supplyInterestRate <= maxInterestRate,
-			"interest rate should be less than maxInterestRate."
-		);
+		if (supplyInterestRate >= maxInterestRate) {
+			supplyInterestRate = maxInterestRate;
+		}
 		return supplyInterestRate.mul(_totalSupplyrUSTP).div(365 days).div(APR_COEFFICIENT);
 	}
 }
