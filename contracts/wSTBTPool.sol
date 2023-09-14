@@ -426,15 +426,14 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 
 		_burnrUSTPDebt(borrower, repayAmount);
 
-		// always assuming STBT:rUSTP is 1:1.
-		uint256 liquidateShares = wstbt.getWstbtByStbt(repayAmount);
+		uint256 liquidateAmount = wstbt.getWstbtByStbt(repayAmount);
 		// TODO maybe no need to check.
 		require(
-			depositedAmountWSTBT[borrower] >= liquidateShares,
-			"liquidateShares should be less than borrower's deposit."
+			depositedAmountWSTBT[borrower] >= liquidateAmount,
+			"liquidateAmount should be less than borrower's deposit."
 		);
-		totalDepositedAmountWSTBT -= liquidateShares;
-		depositedAmountWSTBT[borrower] -= liquidateShares;
+		totalDepositedAmountWSTBT -= liquidateAmount;
+		depositedAmountWSTBT[borrower] -= liquidateAmount;
 
 		IERC20(wstbt).safeTransfer(address(liquidatePool), repayAmount);
 	}
