@@ -14,6 +14,14 @@ async function deployMockwTBT(deployer) {
 	return { wtbtToken }
 }
 
+async function deployWSTBT(deployer, stbtToken) {
+	const WSTBT = await ethers.getContractFactory("WSTBT")
+	let wstbtToken = await WSTBT.connect(deployer).deploy("WSTBT", "WSTBT", stbtToken.address)
+	await wstbtToken.deployed()
+
+	return { wstbtToken }
+}
+
 async function deployMockTreasury(deployer, recovery) {
 	const MockTreasury = await ethers.getContractFactory("MockTreasury")
 	let mockTreasury = await MockTreasury.connect(deployer).deploy(recovery.address)
@@ -200,6 +208,18 @@ async function deployrUSTPoolFixture(admin, deployer, stbt, usdc) {
 	return { rustpool }
 }
 
+async function deploywSTBTPoolFixture(admin, deployer, wstbt, usdc) {
+	const wSTBTPool = await ethers.getContractFactory("wSTBTPool")
+	let wstbtPool = await wSTBTPool
+		.connect(deployer)
+		.deploy(admin.address, wstbt.address, usdc.address)
+	await wstbtPool.deployed()
+	// SET ROLE
+	let POOL_MANAGER_ROLE = await wstbtPool.POOL_MANAGER_ROLE()
+	await wstbtPool.connect(admin).grantRole(POOL_MANAGER_ROLE, admin.address)
+	return { wstbtPool }
+}
+
 async function deployInterestRateModelFixture(deployer) {
 	const InterestRateModel = await ethers.getContractFactory("InterestRateModel")
 	let interestRateModel = await InterestRateModel.connect(deployer).deploy()
@@ -273,4 +293,6 @@ module.exports = {
 	deployMigrator,
 	deployUSTPHelperFixture,
 	deployMockMinter,
+	deployWSTBT,
+	deploywSTBTPoolFixture,
 }

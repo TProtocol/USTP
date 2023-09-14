@@ -13,7 +13,7 @@ import "./interfaces/ILiquidatePool.sol";
 import "./interfaces/IMigrator.sol";
 import "./rUSTP.sol";
 
-contract rUSTPool is rUSTP, AccessControl, Pausable {
+contract wSTBTPool is rUSTP, AccessControl, Pausable {
 	using SafeERC20 for IERC20;
 	using SafeMath for uint256;
 
@@ -40,9 +40,6 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	uint256 public totalBorrowrUSTP;
 
 	mapping(address => bool) liquidateProvider;
-	// Used to be a flash liquidate provider
-	mapping(address => bool) flashLiquidateProvider;
-	mapping(address => bool) pendingFlashLiquidateProvider;
 
 	// We assume that the interest rate will not exceed 10%.
 	uint256 public constant maxInterestRate = APR_COEFFICIENT / 10;
@@ -123,6 +120,8 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
 		_unpause();
 	}
+
+	function refreshInterest() external realizeInterest {}
 
 	/**
 	 * @dev to set the liquidate pool
@@ -395,29 +394,6 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		emit LiquidationRecord(msg.sender, borrower, repayAmount, block.timestamp);
 	}
 
-	/**
-	 * @notice The sender liquidates the borrowers collateral by Curve.
-	 * *Can be liquidated at any time*
-	 * Emits a `LiquidationRecord` event.
-	 *
-	 * @param borrower The borrower be liquidated
-	 * @param repayAmount The amount of the rUSTP to repay
-	 * @param j token of index for curve pool
-	 * @param minReturn the minimum amount of return
-	 */
-	function flashLiquidateBorrow(
-		address borrower,
-		uint256 repayAmount,
-		int128 j,
-		uint256 minReturn
-	) external whenNotPaused realizeInterest {
-		require(flashLiquidateProvider[borrower], "borrower is not a provider.");
-		_liquidateProcedure(borrower, repayAmount);
-		liquidatePool.flashLiquidateSTBTByCurve(repayAmount, j, minReturn, msg.sender);
-
-		emit LiquidationRecord(msg.sender, borrower, repayAmount, block.timestamp);
-	}
-
 	function _liquidateProcedure(address borrower, uint256 repayAmount) internal {
 		require(msg.sender != borrower, "don't liquidate self.");
 		uint256 borrowedUSD = getBorrowrUSTPAmountByShares(borrowedShares[borrower]);
@@ -436,33 +412,6 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		depositedAmountWSTBT[borrower] -= liquidateAmount;
 
 		IERC20(wstbt).safeTransfer(address(liquidatePool), repayAmount);
-	}
-
-	/**
-	 * @notice User chooses to apply a provider
-	 */
-	function applyFlashLiquidateProvider() external {
-		pendingFlashLiquidateProvider[msg.sender] = true;
-		emit FlashLiquidateProvider(msg.sender, 1);
-	}
-
-	/**
-	 * @notice User chooses to cancel a provider
-	 */
-	function cancelFlashLiquidateProvider() external {
-		pendingFlashLiquidateProvider[msg.sender] = false;
-		flashLiquidateProvider[msg.sender] = false;
-		emit FlashLiquidateProvider(msg.sender, 0);
-	}
-
-	/**
-	 * @notice Admin accept a apply for provider
-	 */
-	function acceptFlashLiquidateProvider(address user) external onlyRole(POOL_MANAGER_ROLE) {
-		require(pendingFlashLiquidateProvider[user], "the user did not apply.");
-		pendingFlashLiquidateProvider[user] = false;
-		flashLiquidateProvider[user] = true;
-		emit FlashLiquidateProvider(user, 2);
 	}
 
 	/**
