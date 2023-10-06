@@ -6,6 +6,8 @@ interface IrUSTPool {
 
 	function supplyUSDC(uint256 _amount) external;
 
+	function withdrawUSDC(uint256 _amount) external;
+
 	function supplySTBT(uint256 _amount) external;
 
 	function withdrawSTBT(uint256 _amount) external;
@@ -17,6 +19,10 @@ interface IrUSTPool {
 	function borrowUSDC(uint _amount) external;
 
 	function withdrawAllUSDC() external;
+
+	function applyFlashLiquidateProvider() external;
+
+	function cancelFlashLiquidateProvider() external;
 
 	function safeCollateralRate() external view returns (uint256);
 

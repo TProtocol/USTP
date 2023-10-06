@@ -18,4 +18,14 @@ contract MockMinter {
 	function redeem(uint amount, address token, bytes32 salt, bytes calldata extraData) external {
 		IERC20(targetContract).safeTransferFrom(msg.sender, poolAccount, amount);
 	}
+
+	function mint(
+		address token,
+		uint depositAmount,
+		uint minProposedAmount,
+		bytes32 salt,
+		bytes calldata extraData
+	) external {
+		IERC20(token).safeTransferFrom(msg.sender, poolAccount, depositAmount);
+	}
 }

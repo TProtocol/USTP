@@ -29,7 +29,12 @@ contract BorrowLooper is AccessControlUpgradeable, PausableUpgradeable, Reentran
 	IMinter public stbtMinter;
 	IrUSTPool public rustpool;
 
-	function initialize(address _admin, address _rustpool) public initializer {
+	function initialize(
+		address _admin,
+		address _rustpool,
+		address _stbt,
+		address _usdc
+	) public initializer {
 		__AccessControl_init();
 		__Pausable_init();
 		__ReentrancyGuard_init();
@@ -42,16 +47,26 @@ contract BorrowLooper is AccessControlUpgradeable, PausableUpgradeable, Reentran
 		_setupRole(MANAGER_ROLE, _admin);
 
 		rustpool = IrUSTPool(_rustpool);
+		stbt = IERC20Upgradeable(_stbt);
+		usdc = IERC20Upgradeable(_usdc);
 	}
 
-	function setCuverPool(address _cuverPool) external onlyRole(MANAGER_ROLE) {
-		require(_cuverPool != address(0), "target address not be zero.");
-		curvePool = ICurve(_cuverPool);
+	function setCurvePool(address _curvePool) external onlyRole(MANAGER_ROLE) {
+		require(_curvePool != address(0), "target address not be zero.");
+		curvePool = ICurve(_curvePool);
 	}
 
 	function setSTBTMinter(address _stbtMinter) external onlyRole(MANAGER_ROLE) {
 		require(_stbtMinter != address(0), "!_stbtMinter");
 		stbtMinter = IMinter(_stbtMinter);
+	}
+
+	function applyFlashLiquidateProvider() external onlyRole(MANAGER_ROLE) {
+		rustpool.applyFlashLiquidateProvider();
+	}
+
+	function cancelFlashLiquidateProvider() external onlyRole(MANAGER_ROLE) {
+		rustpool.cancelFlashLiquidateProvider();
 	}
 
 	function depostSTBT(uint256 amount) external onlyRole(DEPOSITOR_ROLE) {
@@ -79,7 +94,7 @@ contract BorrowLooper is AccessControlUpgradeable, PausableUpgradeable, Reentran
 	}
 
 	function withdrawUSDC(uint256 amount) external onlyRole(DEPOSITOR_ROLE) {
-		rustpool.supplyUSDC(amount);
+		rustpool.withdrawUSDC(amount);
 		usdc.safeTransfer(msg.sender, usdc.balanceOf(address(this)));
 	}
 
@@ -99,28 +114,35 @@ contract BorrowLooper is AccessControlUpgradeable, PausableUpgradeable, Reentran
 		uint256 minUSDCPrice,
 		uint256 minBorrowUSDC,
 		uint256 looptime
-	) external onlyRole(MANAGER_ROLE) returns (uint256 totalAmount) {
+	) external onlyRole(MANAGER_ROLE) returns (uint256 totalSTBTAmount, uint256 totalUSDCBorrow) {
 		uint256 safeCollateralRate = rustpool.safeCollateralRate();
 		usdc.safeApprove(address(curvePool), type(uint256).max);
 		stbt.safeApprove(address(rustpool), type(uint256).max);
 		for (uint i = 0; i < looptime; i++) {
 			uint256 availableUSDC = usdc.balanceOf(address(rustpool));
-			if (availableUSDC < minBorrowUSDC) {
+			if (availableUSDC <= minBorrowUSDC) {
 				break;
 			}
-			uint256 borrowMax = (ISTBT(address(stbt))
+			uint256 borrowMAX = ((ISTBT(address(stbt))
 				.getAmountByShares(rustpool.depositedSharesSTBT(address(this)))
 				.mul(1e18)
-				.mul(100) / safeCollateralRate) -
-				rustpool.getBorrowedAmount(address(this)).div(1e12);
-			uint256 dy = curvePool.get_dy_underlying(2, 0, borrowMax);
-			if (dy.mul(1e6).div(borrowMax.mul(1e12)) < minUSDCPrice) {
+				.mul(100) / safeCollateralRate) - rustpool.getBorrowedAmount(address(this))).div(
+					1e12
+				);
+			borrowMAX = borrowMAX > availableUSDC ? availableUSDC : borrowMAX;
+			uint256 dy = curvePool.get_dy_underlying(2, 0, borrowMAX);
+			if (dy.mul(1e6).div(borrowMAX.mul(1e12)) < minUSDCPrice) {
 				break;
 			}
-			rustpool.borrowUSDC(borrowMax);
-			curvePool.exchange_underlying(2, 0, borrowMax, dy);
-			rustpool.supplySTBT(dy);
-			totalAmount += dy;
+			rustpool.borrowUSDC(borrowMAX);
+			curvePool.exchange_underlying(2, 0, borrowMAX, dy.mul(999).div(1000));
+			uint256 stbtAmount = stbt.balanceOf(address(this));
+			rustpool.supplySTBT(stbtAmount);
+			totalSTBTAmount += stbtAmount;
+			totalUSDCBorrow += borrowMAX;
+			if (borrowMAX == availableUSDC) {
+				break;
+			}
 		}
 		usdc.safeApprove(address(curvePool), 0);
 		stbt.safeApprove(address(rustpool), 0);
@@ -144,5 +166,19 @@ contract BorrowLooper is AccessControlUpgradeable, PausableUpgradeable, Reentran
 		stbt.safeApprove(address(rustpool), type(uint256).max);
 		rustpool.supplySTBT(stbt.balanceOf(address(this)));
 		stbt.safeApprove(address(rustpool), 0);
+	}
+
+	function getBorrowMax() public view returns (uint256) {
+		uint256 safeCollateralRate = rustpool.safeCollateralRate();
+		uint256 borrowMAX = ((ISTBT(address(stbt))
+			.getAmountByShares(rustpool.depositedSharesSTBT(address(this)))
+			.mul(1e18)
+			.mul(100) / safeCollateralRate) - rustpool.getBorrowedAmount(address(this))).div(1e12);
+		uint256 availableUSDC = usdc.balanceOf(address(rustpool));
+		return borrowMAX > availableUSDC ? availableUSDC : borrowMAX;
+	}
+
+	function getDy() external view returns (uint256 dy) {
+		dy = curvePool.get_dy_underlying(2, 0, getBorrowMax());
 	}
 }
