@@ -12,7 +12,7 @@ const ALCHEMY_API_KEY = process.env.ALCHEMY_API_KEY
 /** @type import('hardhat/config').HardhatUserConfig */
 module.exports = {
 	vyper: {
-		compilers: [{ version: "0.3.7" }, { version: "0.2.4" }],
+		compilers: [{ version: "0.3.7" }, { version: "0.2.4" }, { version: "0.2.15" }],
 	},
 	solidity: {
 		version: "0.8.18",
