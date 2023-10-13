@@ -272,6 +272,8 @@ async function deployUSTPHelperFixture(deployer, rUSTP, iUSTP, ustp, usdctoken) 
 		iUSTP.address,
 		ustp.address,
 		usdctoken.address,
+		// TODO
+		usdctoken.address,
 		deployer.address
 	)
 	await USTPHelper.deployed()

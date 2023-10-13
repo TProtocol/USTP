@@ -28,6 +28,7 @@ const MainnetAddressConfig = {
 	rUSTPAddess: "0x38a1753AEd353e58c64a55a3f3c750E919915537",
 	iUSTPAddess: "0x36df9B0F5e50b6F1341e8D90b222dAa0B5dc385b",
 	USTPAddess: "0xed4d84225273c867d269F967CC696e0877068f8a",
+	oneInchAddress: "0x1111111254EEB25477B68fb85Ed929f73A960582",
 }
 
 // Sepolia Settings
@@ -60,6 +61,8 @@ const LiquidatePoolId = "LiquidatePool"
 const iUSTPId = "iUSTP"
 const USTPId = "USTP"
 const USTPHelperId = "USTPHelper"
+const LooperManagerId = "LooperManager"
+const BorrowLooperId = "BorrowLooper"
 
 const testnetId = {
 	dai: "DaiToken",
@@ -81,4 +84,6 @@ module.exports = {
 	USTPId,
 	testnetId,
 	USTPHelperId,
+	LooperManagerId,
+	BorrowLooperId,
 }

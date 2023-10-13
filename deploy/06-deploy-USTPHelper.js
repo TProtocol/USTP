@@ -13,6 +13,7 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 		config.iUSTPAddess,
 		config.USTPAddess,
 		config.usdcAddress,
+		config.oneInchAddress,
 		config.adminAddress,
 	]
 	const deployResult = await deploy(USTPHelperId, {
