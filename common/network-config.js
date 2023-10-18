@@ -28,7 +28,7 @@ const MainnetAddressConfig = {
 	rUSTPAddess: "0x38a1753AEd353e58c64a55a3f3c750E919915537",
 	iUSTPAddess: "0x36df9B0F5e50b6F1341e8D90b222dAa0B5dc385b",
 	USTPAddess: "0xed4d84225273c867d269F967CC696e0877068f8a",
-	oneInchAddress: "0x1111111254EEB25477B68fb85Ed929f73A960582",
+	USTPHelper: "0x8a3766Dd21B5460519d2c32eb3A57248c6954E4e",
 }
 
 // Sepolia Settings
@@ -63,6 +63,7 @@ const USTPId = "USTP"
 const USTPHelperId = "USTPHelper"
 const LooperManagerId = "LooperManager"
 const BorrowLooperId = "BorrowLooper"
+const SwapRouterId = "SwapRouter"
 
 const testnetId = {
 	dai: "DaiToken",
@@ -86,4 +87,5 @@ module.exports = {
 	USTPHelperId,
 	LooperManagerId,
 	BorrowLooperId,
+	SwapRouterId,
 }

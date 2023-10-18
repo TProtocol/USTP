@@ -18,26 +18,15 @@ contract SwapRouter is AccessControl {
 	address public iustp;
 	address public ustp;
 	IUSTPHelper public ustpHelper;
-	address public immutable oneInchRouter;
-	// recovery fund wallet
-	address public recovery;
+	// 1inch v5: Aggregation Router
+	address public immutable oneInchRouter = 0x1111111254EEB25477B68fb85Ed929f73A960582;
 
-	constructor(
-		address _rustp,
-		address _iustp,
-		address _ustp,
-		address _ustpHelper,
-		address _oneInchRouter,
-		address _recovery
-	) {
+	constructor(address _rustp, address _iustp, address _ustp, address _ustpHelper) {
 		_setupRole(ADMIN_ROLE, msg.sender);
 		rustp = _rustp;
 		iustp = _iustp;
 		ustp = _ustp;
 		ustpHelper = IUSTPHelper(_ustpHelper);
-		require(_recovery != address(0), "!_recovery");
-		recovery = _recovery;
-		oneInchRouter = _oneInchRouter;
 	}
 
 	// swap
@@ -46,23 +35,29 @@ contract SwapRouter is AccessControl {
 		uint256 amountIn,
 		uint256 minAmount,
 		bytes calldata data
-	) public returns (uint256 amountOut) {
+	) external returns (uint256 amountOut) {
 		uint256 realAmountIn = amountIn;
+		IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), realAmountIn);
 		if (tokenIn == rustp || tokenIn == iustp) {
-			IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), realAmountIn);
 			IERC20(tokenIn).safeApprove(address(ustpHelper), realAmountIn);
 			realAmountIn = tokenIn == rustp
 				? ustpHelper.wraprUSTPToUSTP(amountIn)
 				: ustpHelper.wrapiUSTPToUSTP(amountIn);
+			IERC20(tokenIn).safeApprove(address(ustpHelper), 0);
 			tokenIn = ustp;
-		} else {
-			IERC20(tokenIn).safeTransferFrom(msg.sender, address(this), realAmountIn);
 		}
+		uint256 beforeTokenInAmount = IERC20(tokenIn).balanceOf(address(this));
 
 		IERC20(tokenIn).safeApprove(oneInchRouter, realAmountIn);
 		amountOut = _swapOnOneInch(data);
-		IERC20(tokenIn).safeApprove(oneInchRouter, 0);
 		require(amountOut >= minAmount, "lower than minAmount");
+
+		IERC20(tokenIn).safeApprove(oneInchRouter, 0);
+		uint256 afterTokenInAmount = IERC20(tokenIn).balanceOf(address(this));
+		// refund
+		if (beforeTokenInAmount != afterTokenInAmount) {
+			IERC20(tokenIn).safeTransfer(msg.sender, afterTokenInAmount - beforeTokenInAmount);
+		}
 	}
 
 	function _swapOnOneInch(bytes memory _callData) internal returns (uint256 returnAmount) {

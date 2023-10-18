@@ -49,7 +49,7 @@ module.exports = {
 			url: process.env.FORK_API_RPC,
 			chainId: 1,
 			accounts: [process.env.FORK_TEST_PRIVATE],
-			confirmations: 0,
+			confirmations: 2,
 		},
 	},
 	etherscan: {
