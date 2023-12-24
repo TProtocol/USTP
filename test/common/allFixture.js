@@ -265,6 +265,13 @@ async function deployUSTPFixture(admin, deployer, rUSTP) {
 	return { USTPtoken }
 }
 
+async function deployUSTPOFTV2Fixture(deployer, rUSTP) {
+	const USTP_OFTV2 = await ethers.getContractFactory("USTP_OFTV2")
+	let USTP_OFTV2token = await USTP_OFTV2.connect(deployer).deploy(rUSTP.address)
+	await USTP_OFTV2token.deployed()
+	return { USTP_OFTV2token }
+}
+
 async function deployUSTPHelperFixture(deployer, rUSTP, iUSTP, ustp, usdctoken) {
 	const USTPHelperFactory = await ethers.getContractFactory("USTPHelper")
 	let USTPHelper = await USTPHelperFactory.connect(deployer).deploy(
@@ -278,6 +285,31 @@ async function deployUSTPHelperFixture(deployer, rUSTP, iUSTP, ustp, usdctoken) 
 	)
 	await USTPHelper.deployed()
 	return { USTPHelper }
+}
+
+async function deployUSTPControllerFixture(deployer, admin) {
+	const USTPControllerFactory = await ethers.getContractFactory("USTPController")
+	let controller = await USTPControllerFactory.connect(deployer).deploy(admin.address)
+	await controller.deployed()
+	return { controller }
+}
+
+async function deployrUSTPVaultFixture(deployer, admin, rustp, ustp_oft) {
+	const rUSTPVaultFactory = await ethers.getContractFactory("rUSTPVault")
+	let rUSTPVault = await rUSTPVaultFactory
+		.connect(deployer)
+		.deploy(admin.address, rustp.address, ustp_oft.address)
+	await rUSTPVault.deployed()
+	return { rUSTPVault }
+}
+
+async function deployrUSTPRiskModelFixture(deployer, pool, base, quote) {
+	const rUSTPRiskModelFactory = await ethers.getContractFactory("rUSTPRiskModel")
+	let rUSTPRiskModel = await rUSTPRiskModelFactory
+		.connect(deployer)
+		.deploy(pool.address, base.address, quote.address)
+	await rUSTPRiskModel.deployed()
+	return { rUSTPRiskModel }
 }
 
 module.exports = {
@@ -297,4 +329,8 @@ module.exports = {
 	deployMockMinter,
 	deployWSTBT,
 	deploywSTBTPoolFixture,
+	deployUSTPOFTV2Fixture,
+	deployUSTPControllerFixture,
+	deployrUSTPVaultFixture,
+	deployrUSTPRiskModelFixture,
 }

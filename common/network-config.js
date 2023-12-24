@@ -12,6 +12,8 @@ const GoerliAddressConfig = {
 
 	// Chainlink: USDC/USD Price Feed
 	PriceFeedAddress: "0xAb5c49580294Aff77670F839ea425f5b78ab3Ae7",
+
+	layerZeroEndpoint: "0xbfD2135BFfbb0B5378b56643c2Df8a87552Bfa23",
 }
 
 // Mainnet Settings
@@ -29,6 +31,8 @@ const MainnetAddressConfig = {
 	iUSTPAddess: "0x36df9B0F5e50b6F1341e8D90b222dAa0B5dc385b",
 	USTPAddess: "0xed4d84225273c867d269F967CC696e0877068f8a",
 	USTPHelper: "0x8a3766Dd21B5460519d2c32eb3A57248c6954E4e",
+
+	layerZeroEndpoint: "0x66A71Dcef29A0fFBDBE3c6a460a3B5BC225Cd675",
 }
 
 // Sepolia Settings
@@ -65,6 +69,8 @@ const LooperManagerId = "LooperManager"
 const BorrowLooperId = "BorrowLooper"
 const SwapRouterId = "SwapRouter"
 
+const USTP_OFTV2Id = "USTP_OFTV2"
+
 const testnetId = {
 	dai: "DaiToken",
 	usdt: "UsdtToken",
@@ -88,4 +94,5 @@ module.exports = {
 	LooperManagerId,
 	BorrowLooperId,
 	SwapRouterId,
+	USTP_OFTV2Id,
 }
