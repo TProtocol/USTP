@@ -1,5 +1,9 @@
 const { getNamedAccounts, deployments, network } = require("hardhat")
-const { developmentChains, AddressConfig, USTP_OFTV2Id } = require("../../common/network-config")
+const {
+	developmentChains,
+	AddressConfig,
+	USTP_ControllerId,
+} = require("../../common/network-config")
 const { verify } = require("../../common/verify")
 
 module.exports = async ({ getNamedAccounts, deployments }) => {
@@ -7,25 +11,25 @@ module.exports = async ({ getNamedAccounts, deployments }) => {
 	const { deployer } = await getNamedAccounts()
 
 	const config = AddressConfig[network.config.chainId]
+	const USTP_ControllerArgs = [config.adminAddress]
 
-	const USTP_OFTV2Args = [config.layerZeroEndpoint]
-	const deployResult = await deploy(USTP_OFTV2Id, {
+	const deployResult = await deploy(USTP_ControllerId, {
 		from: deployer,
 		log: true,
 		waitConfirmations: 5,
-		args: USTP_OFTV2Args,
+		args: USTP_ControllerArgs,
 	})
 
-	const USTP_OFTV2 = await ethers.getContractAt(USTP_OFTV2Id, deployResult.address)
+	const USTP_Controller = await ethers.getContractAt(USTP_ControllerId, deployResult.address)
 
-	log(`🎉 USTP_OFTV2 deployed at ${USTP_OFTV2.address}`)
+	log(`🎉 USTP_Controller deployed at ${USTP_Controller.address}`)
 
 	if (!developmentChains.includes(network.name)) {
 		console.log("Waiting for 1min to wait for etherscan to index the contract...")
 		await new Promise((resolve) => setTimeout(resolve, 60000))
 		console.log("Verifying vault on Etherscan...")
-		await verify(USTP_OFTV2.address, USTP_OFTV2Args)
+		await verify(USTP_Controller.address, USTP_ControllerArgs)
 	}
 }
 
-module.exports.tags = ["USTP_OFTV2", "all"]
+module.exports.tags = ["USTP_Controller", "all"]

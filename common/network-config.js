@@ -14,6 +14,11 @@ const GoerliAddressConfig = {
 	PriceFeedAddress: "0xAb5c49580294Aff77670F839ea425f5b78ab3Ae7",
 
 	layerZeroEndpoint: "0xbfD2135BFfbb0B5378b56643c2Df8a87552Bfa23",
+
+	// fake
+	ustpRiskModelPool: "0x509Ee0d083DdF8AC028f2a56731412edD63223B9",
+	ustpRiskModelBase: "0x509Ee0d083DdF8AC028f2a56731412edD63223B9",
+	ustpRiskModelQuote: "0x509Ee0d083DdF8AC028f2a56731412edD63223B9",
 }
 
 // Mainnet Settings
@@ -70,6 +75,8 @@ const BorrowLooperId = "BorrowLooper"
 const SwapRouterId = "SwapRouter"
 
 const USTP_OFTV2Id = "USTP_OFTV2"
+const USTP_ControllerId = "USTPController"
+const rUSTPRiskModelId = "rUSTPRiskModel"
 
 const testnetId = {
 	dai: "DaiToken",
@@ -95,4 +102,6 @@ module.exports = {
 	BorrowLooperId,
 	SwapRouterId,
 	USTP_OFTV2Id,
+	USTP_ControllerId,
+	rUSTPRiskModelId,
 }

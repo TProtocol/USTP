@@ -26,9 +26,9 @@ contract USTP_OFTV2 is OFTV2 {
 	mapping(address => bool) private _minters;
 	mapping(address => uint256) public _nonces;
 
-	IUSTPController public gov;
+	IUSTPController public controller;
 
-	event NewGov(address newGov);
+	event NewController(address controller);
 
 	constructor(address _endpoint) OFTV2("USTP", "USTP", 18, _endpoint) {
 		_CACHED_CHAIN_ID = block.chainid;
@@ -43,23 +43,23 @@ contract USTP_OFTV2 is OFTV2 {
 		);
 	}
 
-	function setGov(address _newGov) external onlyOwner {
-		gov = IUSTPController(_newGov);
-		emit NewGov(_newGov);
+	function setController(address _new) external onlyOwner {
+		controller = IUSTPController(_new);
+		emit NewController(_new);
 	}
 
 	function mint(address user, uint256 amount) external {
 		require(amount != 0, "!Zero");
-		require(gov.isUSTPVault(msg.sender), "!auth");
-		require(totalSupply() + amount <= gov.getUSTPCap(), "can't mint more than CAP.");
-		require(gov.checkMintRisk(msg.sender), "can't mint now.");
+		require(controller.isUSTPVault(msg.sender), "!auth");
+		require(totalSupply() + amount <= controller.getUSTPCap(), "can't mint more than CAP.");
+		require(controller.checkMintRisk(msg.sender), "mint fail.");
 		_mint(user, amount);
 	}
 
 	function burn(address user, uint256 amount) external {
 		require(amount != 0, "!Zero");
-		require(gov.isUSTPVault(msg.sender), "!auth");
-		require(gov.checkBurnRisk(msg.sender), "can't mint now.");
+		require(controller.isUSTPVault(msg.sender), "!auth");
+		require(controller.checkBurnRisk(msg.sender), "burn fail.");
 		_burn(user, amount);
 	}
 

@@ -4,7 +4,6 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "../interfaces/IRiskModel.sol";
 
 contract USTPController is AccessControl {
-	bytes32 public constant TIMELOCK_ROLE = keccak256("TIMELOCK_ROLE");
 	bytes32 public constant GOV_ROLE = keccak256("GOV_ROLE");
 
 	mapping(address => bool) public ustpVault;
@@ -18,6 +17,7 @@ contract USTPController is AccessControl {
 	event NewUSTPCap(uint256 newCap);
 
 	constructor(address _gov) {
+		_setupRole(DEFAULT_ADMIN_ROLE, _gov);
 		_setupRole(GOV_ROLE, _gov);
 	}
 
