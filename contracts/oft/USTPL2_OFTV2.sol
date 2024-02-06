@@ -4,7 +4,7 @@ pragma solidity 0.8.18;
 
 import "@layerzerolabs/solidity-examples/contracts/token/oft/v2/OFTV2.sol";
 
-contract USTP is OFTV2 {
+contract USTPL2_OFTV2 is OFTV2 {
 	constructor(
 		uint8 _sharedDecimals,
 		address _lzEndpoint

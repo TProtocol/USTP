@@ -7,9 +7,9 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import "@openzeppelin/contracts/access/AccessControl.sol";
 
-import "./interfaces/ICurve.sol";
-import "./interfaces/AggregatorInterface.sol";
-import "./interfaces/IMinter.sol";
+import "../../interfaces/ICurve.sol";
+import "../../interfaces/AggregatorInterface.sol";
+import "../../interfaces/IMinter.sol";
 
 contract LiquidatePool is AccessControl {
 	using SafeERC20 for IERC20;

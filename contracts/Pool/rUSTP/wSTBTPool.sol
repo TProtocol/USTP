@@ -7,13 +7,13 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-import "./interfaces/ISTBT.sol";
-import "./interfaces/IInterestRateModel.sol";
-import "./interfaces/ILiquidatePool.sol";
-import "./interfaces/IMigrator.sol";
+import "../../interfaces/IWSTBT.sol";
+import "../../interfaces/IInterestRateModel.sol";
+import "../../interfaces/ILiquidatePool.sol";
+import "../../interfaces/IMigrator.sol";
 import "./rUSTP.sol";
 
-contract rUSTPool is rUSTP, AccessControl, Pausable {
+contract wSTBTPool is rUSTP, AccessControl, Pausable {
 	using SafeERC20 for IERC20;
 	using SafeMath for uint256;
 
@@ -24,40 +24,33 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	uint256 public constant APR_COEFFICIENT = 1e8;
 	// Used to calculate the fee base.
 	uint256 public constant FEE_COEFFICIENT = 1e8;
-	// Used to calculate shares of STBT deposited by users.
-	uint256 public totalDepositedSharesSTBT;
+	// Used to calculate amount of WSTBT deposited by users.
+	uint256 public totalDepositedAmountWSTBT;
 	// Used to calculate total supply of rUSTP.
 	uint256 public totalSupplyrUSTP;
 
 	uint256 public safeCollateralRate = 101 * 1e18;
 	uint256 public reserveFactor;
 
-	bool public migrating;
-
-	// Used to record the user's STBT shares.
-	mapping(address => uint256) public depositedSharesSTBT;
+	// Used to record the user's WSTBT amount.
+	mapping(address => uint256) public depositedAmountWSTBT;
 	// Used to record the user's loan shares of rUSTP.
 	mapping(address => uint256) borrowedShares;
 	uint256 public totalBorrowShares;
 	uint256 public totalBorrowrUSTP;
 
 	mapping(address => bool) liquidateProvider;
-	// Used to be a flash liquidate provider
-	mapping(address => bool) flashLiquidateProvider;
-	mapping(address => bool) pendingFlashLiquidateProvider;
 
 	// We assume that the interest rate will not exceed 10%.
 	uint256 public constant maxInterestRate = APR_COEFFICIENT / 10;
 
 	// collateral token.
-	ISTBT public stbt;
+	IWSTBT public wstbt;
 	// Used to mint rUSTP.
 	IERC20 public usdc;
 	// interest rate model
 	IInterestRateModel public interestRateModel;
 	ILiquidatePool public liquidatePool;
-
-	IMigrator public migrator;
 
 	// the claimable fee for protocol
 	// reserves will be claim with rUSTP.
@@ -91,13 +84,12 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 
 	constructor(
 		address admin,
-		ISTBT _stbt,
+		IWSTBT _wstbt,
 		IERC20 _usdc
-	) ERC20("Interest-bearing USD of TProtocol", "rUSTP") {
+	) ERC20("Interest-bearing USD of TProtocol - WSTBT Pool", "rUSTP-WSTBT") {
 		_setupRole(DEFAULT_ADMIN_ROLE, admin);
-		stbt = _stbt;
+		wstbt = _wstbt;
 		usdc = _usdc;
-		migrating = true;
 	}
 
 	modifier realizeInterest() {
@@ -129,6 +121,8 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		_unpause();
 	}
 
+	function refreshInterest() external realizeInterest {}
+
 	/**
 	 * @dev to set the liquidate pool
 	 * @param _address the address of liquidate pool
@@ -138,25 +132,6 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	) external onlyRole(DEFAULT_ADMIN_ROLE) realizeInterest {
 		require(address(liquidatePool) == address(0), "initialized.");
 		liquidatePool = ILiquidatePool(_address);
-	}
-
-	/**
-	 * @dev to set the migrator
-	 * @param _address the address of migrator
-	 */
-	function initMigrator(address _address) external onlyRole(DEFAULT_ADMIN_ROLE) {
-		require(address(migrator) == address(0), "initialized");
-		require(migrating, "migration has been done");
-		migrator = IMigrator(_address);
-	}
-
-	/**
-	 * @dev to revoke migrator
-	 */
-	function revokeMigrator() external onlyRole(DEFAULT_ADMIN_ROLE) {
-		require(migrating, "migration has been done");
-		migrator = IMigrator(address(0));
-		migrating = false;
 	}
 
 	/**
@@ -219,7 +194,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	 */
 	function supplyUSDC(uint256 _amount) external whenNotPaused realizeInterest {
 		require(_amount > 0, "Supply USDC should more then 0.");
-		usdc.transferFrom(msg.sender, address(this), _amount);
+		usdc.safeTransferFrom(msg.sender, address(this), _amount);
 
 		// convert to rUSTP.
 		uint256 convertTorUSTP = _amount.mul(1e12);
@@ -257,16 +232,12 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	}
 
 	function _supplySTBTFor(uint256 _amount, address _receiver) internal {
-		uint256 beforeShares = stbt.sharesOf(address(this));
-		stbt.transferFrom(msg.sender, address(this), _amount);
-		uint256 afterShares = stbt.sharesOf(address(this));
+		IERC20(wstbt).safeTransferFrom(msg.sender, address(this), _amount);
 
-		uint256 userDepositedShares = afterShares.sub(beforeShares);
+		totalDepositedAmountWSTBT += _amount;
+		depositedAmountWSTBT[_receiver] += _amount;
 
-		totalDepositedSharesSTBT += userDepositedShares;
-		depositedSharesSTBT[_receiver] += userDepositedShares;
-
-		emit SupplySTBT(_receiver, _amount, userDepositedShares, block.timestamp);
+		emit SupplySTBT(_receiver, _amount, _amount, block.timestamp);
 	}
 
 	/**
@@ -278,14 +249,13 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	function withdrawSTBT(uint256 _amount) external whenNotPaused realizeInterest {
 		require(_amount > 0, "Withdraw STBT should more then 0.");
 
-		uint256 withdrawShares = stbt.getSharesByAmount(_amount);
-		totalDepositedSharesSTBT -= withdrawShares;
-		depositedSharesSTBT[msg.sender] -= withdrawShares;
+		totalDepositedAmountWSTBT -= _amount;
+		depositedAmountWSTBT[msg.sender] -= _amount;
 
 		_requireIsSafeCollateralRate(msg.sender);
-		stbt.transfer(msg.sender, _amount);
+		IERC20(wstbt).safeTransfer(msg.sender, _amount);
 
-		emit WithdrawSTBT(msg.sender, _amount, withdrawShares, block.timestamp);
+		emit WithdrawSTBT(msg.sender, _amount, _amount, block.timestamp);
 	}
 
 	/**
@@ -294,17 +264,16 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	 *
 	 */
 	function withdrawAllSTBT() external whenNotPaused realizeInterest {
-		uint256 withdrawShares = depositedSharesSTBT[msg.sender];
-		require(withdrawShares > 0, "Withdraw STBT should more then 0.");
-		uint256 _amount = stbt.getAmountByShares(withdrawShares);
+		uint256 amount = depositedAmountWSTBT[msg.sender];
+		require(amount > 0, "Withdraw STBT should more then 0.");
 
-		totalDepositedSharesSTBT -= withdrawShares;
-		depositedSharesSTBT[msg.sender] = 0;
+		totalDepositedAmountWSTBT -= amount;
+		depositedAmountWSTBT[msg.sender] = 0;
 
 		_requireIsSafeCollateralRate(msg.sender);
-		stbt.transfer(msg.sender, _amount);
+		IERC20(wstbt).safeTransfer(msg.sender, amount);
 
-		emit WithdrawSTBT(msg.sender, _amount, withdrawShares, block.timestamp);
+		emit WithdrawSTBT(msg.sender, amount, amount, block.timestamp);
 	}
 
 	/**
@@ -321,7 +290,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		uint256 convertTorUSTP = _amount.mul(10 ** 12);
 
 		_burnrUSTP(msg.sender, convertTorUSTP);
-		usdc.transfer(msg.sender, _amount);
+		usdc.safeTransfer(msg.sender, _amount);
 
 		emit WithdrawUSDC(msg.sender, _amount, block.timestamp);
 	}
@@ -342,7 +311,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		_burnrUSTP(msg.sender, _amount);
 
 		if (convertToUSDC > 0) {
-			usdc.transfer(msg.sender, convertToUSDC);
+			usdc.safeTransfer(msg.sender, convertToUSDC);
 		}
 
 		emit WithdrawUSDC(msg.sender, convertToUSDC, block.timestamp);
@@ -377,7 +346,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	function repayUSDC(uint256 _amount) external whenNotPaused realizeInterest {
 		require(_amount > 0, "Repay USDC should more then 0.");
 
-		usdc.transferFrom(msg.sender, address(this), _amount);
+		usdc.safeTransferFrom(msg.sender, address(this), _amount);
 		// convert to rUSTP.
 		uint256 convertTorUSTP = _amount.mul(1e12);
 
@@ -399,7 +368,7 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 
 		// convert to USDC.
 		uint256 convertToUSDC = repayrUSTP.div(1e12) + 1;
-		usdc.transferFrom(msg.sender, address(this), convertToUSDC);
+		usdc.safeTransferFrom(msg.sender, address(this), convertToUSDC);
 
 		_burnrUSTPDebt(msg.sender, repayrUSTP);
 
@@ -425,29 +394,6 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 		emit LiquidationRecord(msg.sender, borrower, repayAmount, block.timestamp);
 	}
 
-	/**
-	 * @notice The sender liquidates the borrowers collateral by Curve.
-	 * *Can be liquidated at any time*
-	 * Emits a `LiquidationRecord` event.
-	 *
-	 * @param borrower The borrower be liquidated
-	 * @param repayAmount The amount of the rUSTP to repay
-	 * @param j token of index for curve pool
-	 * @param minReturn the minimum amount of return
-	 */
-	function flashLiquidateBorrow(
-		address borrower,
-		uint256 repayAmount,
-		int128 j,
-		uint256 minReturn
-	) external whenNotPaused realizeInterest {
-		require(flashLiquidateProvider[borrower], "borrower is not a provider.");
-		_liquidateProcedure(borrower, repayAmount);
-		liquidatePool.flashLiquidateSTBTByCurve(repayAmount, j, minReturn, msg.sender);
-
-		emit LiquidationRecord(msg.sender, borrower, repayAmount, block.timestamp);
-	}
-
 	function _liquidateProcedure(address borrower, uint256 repayAmount) internal {
 		require(msg.sender != borrower, "don't liquidate self.");
 		uint256 borrowedUSD = getBorrowrUSTPAmountByShares(borrowedShares[borrower]);
@@ -456,44 +402,16 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 
 		_burnrUSTPDebt(borrower, repayAmount);
 
-		// always assuming STBT:rUSTP is 1:1.
-		uint256 liquidateShares = stbt.getSharesByAmount(repayAmount);
+		uint256 liquidateAmount = wstbt.getWstbtByStbt(repayAmount);
 		// TODO maybe no need to check.
 		require(
-			depositedSharesSTBT[borrower] >= liquidateShares,
-			"liquidateShares should be less than borrower's deposit."
+			depositedAmountWSTBT[borrower] >= liquidateAmount,
+			"liquidateAmount should be less than borrower's deposit."
 		);
-		totalDepositedSharesSTBT -= liquidateShares;
-		depositedSharesSTBT[borrower] -= liquidateShares;
+		totalDepositedAmountWSTBT -= liquidateAmount;
+		depositedAmountWSTBT[borrower] -= liquidateAmount;
 
-		stbt.transfer(address(liquidatePool), repayAmount);
-	}
-
-	/**
-	 * @notice User chooses to apply a provider
-	 */
-	function applyFlashLiquidateProvider() external {
-		pendingFlashLiquidateProvider[msg.sender] = true;
-		emit FlashLiquidateProvider(msg.sender, 1);
-	}
-
-	/**
-	 * @notice User chooses to cancel a provider
-	 */
-	function cancelFlashLiquidateProvider() external {
-		pendingFlashLiquidateProvider[msg.sender] = false;
-		flashLiquidateProvider[msg.sender] = false;
-		emit FlashLiquidateProvider(msg.sender, 0);
-	}
-
-	/**
-	 * @notice Admin accept a apply for provider
-	 */
-	function acceptFlashLiquidateProvider(address user) external onlyRole(POOL_MANAGER_ROLE) {
-		require(pendingFlashLiquidateProvider[user], "the user did not apply.");
-		pendingFlashLiquidateProvider[user] = false;
-		flashLiquidateProvider[user] = true;
-		emit FlashLiquidateProvider(user, 2);
+		IERC20(wstbt).safeTransfer(address(liquidatePool), repayAmount);
 	}
 
 	/**
@@ -502,41 +420,6 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	function setLiquidateProvider(address user, bool status) external onlyRole(POOL_MANAGER_ROLE) {
 		liquidateProvider[user] = status;
 		emit NewLiquidateProvider(user, status);
-	}
-
-	/**
-	 * @notice Migrate wTBT to rUSTP
-	 * @param _user the user of deposit USDC
-	 * @param _borrower the user of deposit STBT
-	 * @param _amount the amount of migration
-	 */
-	function migrate(
-		address _user,
-		address _borrower,
-		uint256 _amount
-	) external whenNotPaused realizeInterest {
-		require(migrating, "migration is done.");
-		require(msg.sender == address(migrator), "no authorization.");
-
-		// Mint USTP to user, 1-to-1 stbt
-		_mintrUSTP(_user, _amount);
-
-		// supply stbt
-		uint256 beforeShares = stbt.sharesOf(address(this));
-		stbt.transferFrom(_borrower, address(this), _amount);
-		uint256 afterShares = stbt.sharesOf(address(this));
-
-		uint256 userDepositedShares = afterShares.sub(beforeShares);
-
-		totalDepositedSharesSTBT += userDepositedShares;
-		depositedSharesSTBT[_borrower] += userDepositedShares;
-
-		// Borrow
-		// At migrate. we don't check healthy
-		// Deposit stbt for borrower later
-		_mintrUSTPDebt(_borrower, _amount);
-
-		emit BorrowUSDC(msg.sender, _amount, block.timestamp);
 	}
 
 	/**
@@ -656,12 +539,12 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 	}
 
 	/**
-	 * @dev Return USD value of STBT
+	 * @dev Return USD value of WSTBT
 	 * it should be equal to $1.
 	 * maybe possible through the oracle.
 	 */
-	function _stbtPrice() internal pure returns (uint256) {
-		return 1e18;
+	function _wstbtPrice() internal view returns (uint256) {
+		return wstbt.stbtPerToken();
 	}
 
 	/**
@@ -673,8 +556,8 @@ contract rUSTPool is rUSTP, AccessControl, Pausable {
 			return;
 		}
 		require(
-			(stbt.getAmountByShares(depositedSharesSTBT[user]).mul(_stbtPrice()).mul(100) /
-				borrowedAmount) >= safeCollateralRate,
+			(depositedAmountWSTBT[user].mul(_wstbtPrice()).mul(100) / borrowedAmount) >=
+				safeCollateralRate,
 			"Cannot be lower than the safeCollateralRate."
 		);
 	}

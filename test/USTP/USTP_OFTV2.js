@@ -95,7 +95,7 @@ describe("USTP_OFT", function () {
 			usdcToken
 		))
 
-		await USTP_OFTV2token.connect(admin).setGov(controller.address)
+		await USTP_OFTV2token.connect(admin).setController(controller.address)
 
 		await controller.connect(admin).setUSTPMinter(rUSTPVault.address, true)
 		await controller

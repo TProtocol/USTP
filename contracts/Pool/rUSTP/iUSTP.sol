@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import "./interfaces/IrUSTP.sol";
+import "../../interfaces/IrUSTP.sol";
 
 contract iUSTP is ERC20, AccessControl {
 	using SafeERC20 for ERC20;
